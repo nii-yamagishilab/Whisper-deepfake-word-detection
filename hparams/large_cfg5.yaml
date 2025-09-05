@@ -1,7 +1,7 @@
 data_base_dir: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/partial_spoof_to_zip/tedx_test
 model_name: large
 lang: fr
-learning_rate: 0.0000001
+learning_rate: 0.0001
 weight_decay: 0.01
 adam_epsilon: 1e-8
 warmup_steps: 2

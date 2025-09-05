@@ -12,6 +12,9 @@ vocoding_label = "!!!!!!"
 # -----------------------------
 # 1. Helper functions for vocoding evaluation
 # -----------------------------
+def remove_vocoding_labels(text: str):
+    return text.replace(vocoding_label + ' ', '')
+
 def extract_vocoding_labels(text: str):
     """
     Given a text with vocoded words prefixed by '!!!!!!',
@@ -136,21 +139,21 @@ def prepro(text):
     return text.lower().strip()
 
 
-if __name__ == "__main__":
-    
-    # 
-    input_file = sys.argv[1]
-    
+
+def main(input_file):
     if input_file.endswith('pkl'):
         # pickle file
         with open(input_file, 'rb') as file_ptr:
             data = pickle.load(file_ptr)
 
-    assert len(data) == 4, "The input is supposed to be [res, res_raw, refs, refs_raw]"
+    assert len(data) == 2, "The input is supposed to be [res, refs]"
 
     
 
-    res, res_raw, refs, refs_raw = data[0], data[1], data[2], data[3]
+    res, refs = data[0], data[1]
+    res_raw = [remove_vocoding_labels(x) for x in res]
+    refs_raw = [remove_vocoding_labels(x) for x in refs]
+    
     # -----------------------------
     # Compute CER
     # -----------------------------
@@ -191,3 +194,10 @@ if __name__ == "__main__":
     print(f"References:  {num_phrases_ref} phrases, {num_words_ref} words")
     print(f"Predictions: {num_phrases_pred} phrases, {num_words_pred} words")
 
+    
+
+if __name__ == "__main__":
+    
+    # 
+    main(sys.argv[1])
+    

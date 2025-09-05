@@ -1,0 +1,27 @@
+name: partialwhispeer
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch=2.2.0
+  - torchaudio=2.2.0
+  - pytorch-cuda=12.1
+  - pip:
+    - librosa==0.10.2.post1
+    - numba==0.60.0
+    - numpy==1.24.4
+    - pandas==2.2.3
+    - pytorch-lightning==2.5.0.post0
+    - tensorboardX==2.6.2.2
+    - scikit-learn==1.6.0
+    - scipy==1.15.0
+    - soundfile==0.13.0
+    - speechbrain==1.0.2
+    - openai-whisper @ git+https://github.com/openai/whisper.git@c0d2f624c09dc18e709e37c2ad90c039a4eb72a2
+    - evaluate==0.2.2
+    - jiwer==4.0.0
+    - transformers==4.47.1
+    - tqdm==4.67.1
