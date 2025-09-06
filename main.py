@@ -77,7 +77,9 @@ def process_dataset_type(
     sample_rate=16000,
 ):
     audio_transcript_pair_list = []
-    json_path_list = list(Path(json_dir).rglob("*.json"))
+    # fix the random seed
+    pd_tmp = pd.DataFrame({'json': list(Path(json_dir).rglob("*.json"))}).sample(frac=1, random_state=SEED)
+    json_path_list = pd_tmp['json'].to_list()
     
     print(f"\nProcessing {len(json_path_list)} JSON files from {json_dir}")
     print(f"Using audio extension: {extension}")
@@ -478,16 +480,13 @@ def inference(cfg):
 
     dataset = TedXSpeechDataset(eval_pairs, wtokenizer, cfg.sample_rate, whisper_model.nmel)
     loader = torch.utils.data.DataLoader(dataset, batch_size=2, collate_fn=WhisperDataCollatorWhithPadding())
-
-    
     
     # -----------------------------
     # 3. Run inference
     # -----------------------------
     refs = []
-    refs_raw = []
     res = []
-    res_raw = []
+
     for b in tqdm(loader):
         input_ids = b["input_ids"].half().cuda()
         labels = b["labels"].long()

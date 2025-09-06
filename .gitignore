@@ -5,10 +5,12 @@ __pycache__/
 
 # C extensions
 *.so
+qsub*
 
 # Distribution / packaging
 .Python
 project/
+project*/
 build/
 develop-eggs/
 dist/
