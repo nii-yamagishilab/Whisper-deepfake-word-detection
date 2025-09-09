@@ -118,9 +118,9 @@ def compute_detection_metrics(refs, preds, old_method=False):
         "b_true_spoof": b,
         "c_false_negative": c,
         "d_false_positive": d,
-        "accuracy": accuracy,
-        "FPR": false_positive_rate,
-        "FNR": false_negative_rate,
+        "accuracy": accuracy * 100,
+        "FPR": false_positive_rate * 100,
+        "FNR": false_negative_rate * 100,
     }
 
 
@@ -160,13 +160,13 @@ def main(input_file):
     cer_metrics = evaluate.load("cer")
     cer = cer_metrics.compute(references=[prepro(x) for x in refs_raw], 
                               predictions=[prepro(x) for x in res_raw])
-    print(f"CER: {cer:.4f}")
+    print("CER: {:.4f}".format(cer * 100))
 
     # WER
     wer_metrics = evaluate.load("wer")
     wer = wer_metrics.compute(references=[prepro(x) for x in refs_raw], 
                               predictions=[prepro(x) for x in res_raw])
-    print(f"WER: {wer:.4f}")
+    print("WER: {:.4f}".format(wer * 100))
 
     # -----------------------------
     # 5. Compute vocoded detection metrics

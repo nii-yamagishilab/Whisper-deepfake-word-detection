@@ -39,8 +39,9 @@ import evaluation
 SEED = 3407
 pl.seed_everything(SEED, workers=True)
 
-def return_folder_name(model_name, learning_rate):
-    project_dir = 'project/cp_whisper_{:s}_lr_{:3.0e}'.format(model_name, learning_rate)
+def return_folder_name(cfg_name, model_name, learning_rate):
+    #project_dir = 'project/cp_whisper_{:s}_lr_{:3.0e}'.format(model_name, learning_rate)
+    project_dir = 'project/cp_whisper_{:s}'.format(cfg_name)
     log_output_dir = "{:s}/logs".format(project_dir)
     check_output_dir = "{:s}/artifacts".format(project_dir)
     cp_dir = "{:s}/checkpoint".format(check_output_dir)
@@ -174,13 +175,18 @@ def process_all_datasets(base_dir, sample_rate, text_max_length=1000, audio_max_
     return all_pairs
 
 class TedXSpeechDataset(torch.utils.data.Dataset):
-    def __init__(self, audio_info_list, tokenizer, sample_rate, nmel) -> None:
+    def __init__(self, audio_info_list, tokenizer, cfg, nmel, ps_tokens=[]) -> None:
         super().__init__()
 
         self.audio_info_list = audio_info_list
-        self.sample_rate = sample_rate
+        self.sample_rate = cfg.sample_rate
         self.tokenizer = tokenizer
         self.nmel = nmel
+        
+        # loss cross entropy weights
+        self.w_voc_token = cfg.weight_vocoded_token if hasattr(cfg, 'weight_vocoded_token') else 1.0
+        self.w_oth_token = cfg.weight_other_token if hasattr(cfg, 'weight_other_token') else 1.0
+        self.ps_tokens = ps_tokens
 
     def __len__(self):
         return len(self.audio_info_list)
@@ -195,27 +201,35 @@ class TedXSpeechDataset(torch.utils.data.Dataset):
 
         # print(text)
         text = [*self.tokenizer.sot_sequence_including_notimestamps] + self.tokenizer.encode(text)
+
         # print(text)
         labels = text[1:] + [self.tokenizer.eot]
+        
+        # weights for cross entropy loss
+        mask = torch.ones_like(torch.tensor(labels)) * self.w_oth_token
+        for ps_token in self.ps_tokens:
+            mask[labels == ps_token] = self.w_voc_token
+        
         # print(labels)
         # print("tooooooooooooooooooooooooooooooooooooooo")
         # print(self.tokenizer.decode(text))
         return {
             "input_ids": mel,
             "labels": labels,
-            "dec_input_ids": text
+            "dec_input_ids": text,
+            'mask': mask
         }
 
 class WhisperDataCollatorWhithPadding:
     def __call__(sefl, features):
-        input_ids, labels, dec_input_ids = [], [], []
+        input_ids, labels, dec_input_ids, masks = [], [], [], []
         for f in features:
             input_ids.append(f["input_ids"])
             labels.append(f["labels"])
+            masks.append(f["mask"])
             dec_input_ids.append(f["dec_input_ids"])
 
         input_ids = torch.concat([input_id[None, :] for input_id in input_ids])
-        
         label_lengths = [len(lab) for lab in labels]
         dec_input_ids_length = [len(e) for e in dec_input_ids]
         max_label_len = max(label_lengths+dec_input_ids_length)
@@ -223,14 +237,19 @@ class WhisperDataCollatorWhithPadding:
         # 50257 is eot token id
         labels = [np.pad(lab, (0, max_label_len - lab_len), 'constant', constant_values=-100) \
                   for lab, lab_len in zip(labels, label_lengths)]
+        masks = [np.pad(mask, (0, max_label_len - lab_len), 'constant', constant_values=0) \
+                for mask, lab_len in zip(masks, label_lengths)]
+        
         dec_input_ids = [np.pad(e, (0, max_label_len - e_len), 'constant', constant_values=50257) \
                          for e, e_len in zip(dec_input_ids, dec_input_ids_length)] 
-
+        
         batch = {
             "labels": labels,
+            "masks": masks,
             "dec_input_ids": dec_input_ids
         }
 
+        # input features
         batch = {k: torch.tensor(np.array(v), requires_grad=False) for k, v in batch.items()}
         batch["input_ids"] = input_ids
 
@@ -238,20 +257,54 @@ class WhisperDataCollatorWhithPadding:
 
 
 class WhisperModelModule(LightningModule):
-    def __init__(self, cfg, model_name="base", lang="fr", train_dataset=[], eval_dataset=[]) -> None:
+    def __init__(self,
+                 cfg,
+                 model_name="base",
+                 lang="fr",
+                 train_dataset=[],
+                 eval_dataset=[],
+                 ps_tokens=[220, 50199]) -> None:
         super().__init__()
         self.options = whisper.DecodingOptions(language=lang, without_timestamps=True)
         self.model = whisper.load_model(model_name)
         self.tokenizer = whisper.tokenizer.get_tokenizer(True, language="fr", task=self.options.task)
+        # flag of fine-tuning
+        #  by default False
+        self.finetune_encoder = cfg.finetune_encoder if hasattr(cfg, 'finetune_encoder') else False
+        #  by default True
+        self.finetune_decoder = cfg.finetune_decoder if hasattr(cfg, 'finetune_decoder') else True
+
         
         # number of mels
         self.nmel = self.model.dims.n_mels
 
-        # only decoder training
-        for p in self.model.encoder.parameters():
-            p.requires_grad = False
+        if not self.finetune_encoder:
+            # not update encoder
+            for p in self.model.encoder.parameters():
+                p.requires_grad = False
+
+        if not self.finetune_decoder:
+            # not update decoder
+            for p in self.model.decoder.parameters():
+                p.requires_grad = False
+            
+        # loss cross entropy weights
+        self.w_voc_token = cfg.weight_vocoded_token  if hasattr(cfg, 'weight_vocoded_token') else 1.0
+        self.w_oth_token = cfg.weight_other_token  if hasattr(cfg, 'weight_other_token') else 1.0
         
-        self.loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
+        weights = torch.ones(self.model.decoder.token_embedding.num_embeddings) * self.w_oth_token
+        for ps_token in ps_tokens:
+            weights[ps_token] = self.w_voc_token
+
+        # just to be backward compatible
+        #  otherwise, loss_fn.weight is required from the checkpoint
+        if (not hasattr(cfg, 'weight_other_token')) and (not hasattr(cfg, 'weight_vocoded_token')):
+            weights = None
+        
+        # cross entropy loss 
+        self.loss_fn = nn.CrossEntropyLoss(weight = weights, ignore_index=-100)
+
+        # loss for WER/CER
         self.metrics_wer = evaluate.load("wer")
         self.metrics_cer = evaluate.load("cer")
 
@@ -263,15 +316,26 @@ class WhisperModelModule(LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_id):
+        # 
         input_ids = batch["input_ids"]
         labels = batch["labels"].long()
+        masks = batch["masks"]
         dec_input_ids = batch["dec_input_ids"].long()
 
-        with torch.no_grad():
+        # encoding
+        #  whether fine-tune encoder
+        if self.finetune_encoder:
             audio_features = self.model.encoder(input_ids)
+        else:
+            with torch.no_grad():
+                audio_features = self.model.encoder(input_ids)
 
+        # decoding
         out = self.model.decoder(dec_input_ids, audio_features)
+
+        # compute loss
         loss = self.loss_fn(out.view(-1, out.size(-1)), labels.view(-1))
+        
         self.log("train_loss", loss, on_step=True, prog_bar=True, logger=True)
         return loss
     
@@ -344,7 +408,7 @@ class WhisperModelModule(LightningModule):
     
     def train_dataloader(self):
         dataset = TedXSpeechDataset(self.__train_dataset, self.tokenizer,
-                                    self.cfg.sample_rate, self.nmel)
+                                    self.cfg, self.nmel)
         return torch.utils.data.DataLoader(dataset, 
                           batch_size=self.cfg.batch_size, 
                           drop_last=True, shuffle=True, num_workers=self.cfg.num_worker,
@@ -353,7 +417,7 @@ class WhisperModelModule(LightningModule):
 
     def val_dataloader(self):
         dataset = TedXSpeechDataset(self.__eval_dataset, self.tokenizer,
-                                    self.cfg.sample_rate, self.nmel)
+                                    self.cfg, self.nmel)
         return torch.utils.data.DataLoader(dataset, 
                           batch_size=self.cfg.batch_size, 
                           num_workers=self.cfg.num_worker,
@@ -362,7 +426,7 @@ class WhisperModelModule(LightningModule):
 
 
 
-def train(cfg):
+def train(cfg, cfg_name):
         # Dataset setup - point to your base directory
     data_dir = cfg.data_base_dir
     print(f"\n{'#'*50}")
@@ -394,7 +458,7 @@ def train(cfg):
     model_name = cfg.model_name
     lang = cfg.lang
 
-    project_dir, log_output_dir, cp_dir, _ = return_folder_name(model_name, cfg.learning_rate)
+    project_dir, log_output_dir, cp_dir, _ = return_folder_name(cfg_name, model_name, cfg.learning_rate)
     
     train_name = "whisper_finetune_lr_{:3.0e}".format(cfg.learning_rate)
     train_id = "all_finetune_lr_{:3.0e}".format(cfg.learning_rate)
@@ -434,7 +498,7 @@ def train(cfg):
     print("Training finished")
 
 
-def inference(cfg):
+def inference(cfg, cfg_name):
     # Process all datasets
     all_audio_transcript_pairs = process_all_datasets(cfg.data_base_dir, cfg.sample_rate)
     print(f"\nTOTAL AUDIO-TEXT PAIRS FOUND: {len(all_audio_transcript_pairs)}")
@@ -457,7 +521,7 @@ def inference(cfg):
     model_name = cfg.model_name
     lang = cfg.lang
 
-    project_dir, _, cp_dir, save_dir = return_folder_name(model_name, cfg.learning_rate)
+    project_dir, _, cp_dir, save_dir = return_folder_name(cfg_name, model_name, cfg.learning_rate)
     Path(save_dir).mkdir(parents=True, exist_ok=True)
     train_name = "whisper_finetune_lr_{:3.0e}".format(cfg.learning_rate)
     train_id = "all_finetune_lr_{:3.0e}".format(cfg.learning_rate)
@@ -478,7 +542,7 @@ def inference(cfg):
 
     woptions = whisper.DecodingOptions(language="fr", without_timestamps=True)
 
-    dataset = TedXSpeechDataset(eval_pairs, wtokenizer, cfg.sample_rate, whisper_model.nmel)
+    dataset = TedXSpeechDataset(eval_pairs, wtokenizer, cfg, whisper_model.nmel)
     loader = torch.utils.data.DataLoader(dataset, batch_size=2, collate_fn=WhisperDataCollatorWhithPadding())
     
     # -----------------------------
@@ -512,10 +576,12 @@ def inference(cfg):
 if __name__ == "__main__":
     
     # load configuration file
-    with open(sys.argv[1], encoding="utf-8") as fin:
+    cfg_name = sys.argv[1]
+    print("User {:s}".format(cfg_name))
+    with open(cfg_name, encoding="utf-8") as fin:
         cfg = SimpleNamespace(**load_hyperpyyaml(fin))
     
     if sys.argv[2] == 'train':
-        train(cfg)
+        train(cfg, cfg_name.replace('/', '_'))
     else:
-        inference(cfg)
+        inference(cfg, cfg_name.replace('/', '_'))
