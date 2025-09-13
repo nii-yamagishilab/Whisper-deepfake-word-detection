@@ -170,7 +170,7 @@ def load_model(
 
 def load_lora_model(name, lora_r=8, lora_alpha=8, lora_dropout=0.0,
                     device=None, download_root: str = None,
-                    in_memory: bool = False):
+                    in_memory: bool = False, merge_weights: bool = False):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     if download_root is None:
@@ -196,28 +196,13 @@ def load_lora_model(name, lora_r=8, lora_alpha=8, lora_dropout=0.0,
     del checkpoint_file
 
     dims = ModelDimensions(**checkpoint["dims"])
-    ## 1. model
-    #dims = ModelDimensions(
-    #    n_mels = 80,
-    #    # n_vocab = 51864,  # english
-    #    n_vocab = 51865,  # multilingual
-    #    # n_vocab = 51866,  # multilingual
-    #    n_audio_ctx = 1500,
-    #    n_audio_state = 1024,
-    #    n_audio_head = 16,
-    #    n_audio_layer = 24,
-    #    n_text_ctx = 448,
-    #    n_text_state = 1024,
-    #    n_text_head = 16,
-    #    n_text_layer = 24,
-    #)
     
     lora_conf = LoRAConf(
         lora_r = lora_r,
         lora_alpha = lora_alpha,
         lora_dropout = lora_dropout,
     )
-    model = Whisper_lora(dims, lora_conf).to(device)
+    model = Whisper_lora(dims, lora_conf, merge_weights).to(device)
     #checkpoint = torch.load(loadfrom)
     model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 

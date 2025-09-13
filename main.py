@@ -265,7 +265,8 @@ class WhisperModelModule(LightningModule):
                  lang="fr",
                  train_dataset=[],
                  eval_dataset=[],
-                 ps_tokens=[220, 50199]) -> None:
+                 ps_tokens=[220, 50199],
+                 inference_flag=False) -> None:
         super().__init__()
         self.options = whisper.DecodingOptions(language=lang, without_timestamps=True)
 
@@ -273,7 +274,9 @@ class WhisperModelModule(LightningModule):
             lora_r = cfg.lora_r if hasattr(cfg, 'lora_r') else 8
             lora_alpha = cfg.lora_alpha if hasattr(cfg, 'lora_alpha') else 8
             lora_dropout = cfg.lora_dropout if hasattr(cfg, 'lora_dropout') else 0.0
-            self.model = whisper.load_lora_model(model_name, lora_r, lora_alpha, lora_dropout)
+            # inference, we merge the LoRA weights back to the original weights
+            self.model = whisper.load_lora_model(model_name, lora_r, lora_alpha, lora_dropout,
+                                                 merge_weights = inference_flag)
         else:
             self.model = whisper.load_model(model_name)
         
@@ -552,7 +555,7 @@ def inference(cfg, cfg_name):
     # 2. Load checkpoint and prepare model
     # -----------------------------
     # load pre-trained model
-    whisper_model = WhisperModelModule(cfg, model_name, lang)
+    whisper_model = WhisperModelModule(cfg, model_name, lang, inference_flag=True)
     
     if hasattr(cfg, 'lora') and cfg.lora:
         woptions = whisper.DecodingOptions(language="fr", without_timestamps=True, fp16=True)

@@ -89,13 +89,33 @@ def disable_sdpa():
 class MultiHeadAttention(nn.Module):
     use_sdpa = True
     
-    def __init__(self, n_state: int, n_head: int, lora_conf: LoRAConf):
+    def __init__(self, n_state: int, n_head: int, lora_conf: LoRAConf, merge_weights:bool=False):
         super().__init__()
         self.n_head = n_head
-        self.query = lora.Linear(n_state, n_state, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout)
-        self.key = lora.Linear(n_state, n_state, bias=False, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout)
-        self.value = lora.Linear(n_state, n_state, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout)
-        self.out = lora.Linear(n_state, n_state, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout)
+        self.query = lora.Linear(
+            n_state, n_state,
+            r=lora_conf.lora_r,
+            lora_alpha=lora_conf.lora_alpha,
+            lora_dropout=lora_conf.lora_dropout,
+            merge_weights=merge_weights)
+        self.key = lora.Linear(
+            n_state, n_state, bias=False,
+            r=lora_conf.lora_r,
+            lora_alpha=lora_conf.lora_alpha,
+            lora_dropout=lora_conf.lora_dropout,
+            merge_weights=merge_weights)
+        self.value = lora.Linear(
+            n_state, n_state,
+            r=lora_conf.lora_r,
+            lora_alpha=lora_conf.lora_alpha,
+            lora_dropout=lora_conf.lora_dropout,
+            merge_weights=merge_weights)
+        self.out = lora.Linear(
+            n_state, n_state,
+            r=lora_conf.lora_r,
+            lora_alpha=lora_conf.lora_alpha,
+            lora_dropout=lora_conf.lora_dropout,
+            merge_weights=merge_weights)
         
     def forward(
         self,
@@ -148,13 +168,13 @@ class MultiHeadAttention(nn.Module):
 
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, n_state: int, n_head: int, lora_conf: LoRAConf = None, cross_attention: bool = False):
+    def __init__(self, n_state: int, n_head: int, lora_conf: LoRAConf = None, merge_weights: bool=False, cross_attention: bool = False):
         super().__init__()
 
-        self.attn = MultiHeadAttention(n_state, n_head, lora_conf=lora_conf)
+        self.attn = MultiHeadAttention(n_state, n_head, lora_conf=lora_conf, merge_weights=merge_weights)
         self.attn_ln = LayerNorm(n_state)
 
-        self.cross_attn = MultiHeadAttention(n_state, n_head, lora_conf=lora_conf) if cross_attention else None
+        self.cross_attn = MultiHeadAttention(n_state, n_head, lora_conf=lora_conf, merge_weights=merge_weights) if cross_attention else None
         self.cross_attn_ln = LayerNorm(n_state) if cross_attention else None
 
         n_mlp = n_state * 4
@@ -176,14 +196,14 @@ class ResidualAttentionBlock(nn.Module):
 
 
 class AudioEncoder(nn.Module):
-    def __init__(self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, lora_conf: LoRAConf):
+    def __init__(self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, lora_conf: LoRAConf, merge_weights: bool):
         super().__init__()
         self.conv1 = Conv1d(n_mels, n_state, kernel_size=3, padding=1)
         self.conv2 = Conv1d(n_state, n_state, kernel_size=3, stride=2, padding=1)
         self.register_buffer("positional_embedding", sinusoids(n_ctx, n_state))
 
         self.blocks: Iterable[ResidualAttentionBlock] = nn.ModuleList(
-            [ResidualAttentionBlock(n_state, n_head, lora_conf=lora_conf) for _ in range(n_layer)]
+            [ResidualAttentionBlock(n_state, n_head, lora_conf=lora_conf, merge_weights=merge_weights) for _ in range(n_layer)]
         )
         self.ln_post = LayerNorm(n_state)
 
@@ -207,14 +227,14 @@ class AudioEncoder(nn.Module):
 
 
 class TextDecoder(nn.Module):
-    def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, lora_conf: LoRAConf):
+    def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, lora_conf: LoRAConf, merge_weights: bool):
         super().__init__()
 
         self.token_embedding = nn.Embedding(n_vocab, n_state)
         self.positional_embedding = nn.Parameter(torch.empty(n_ctx, n_state))
 
         self.blocks: Iterable[ResidualAttentionBlock] = nn.ModuleList(
-            [ResidualAttentionBlock(n_state, n_head, lora_conf=lora_conf, cross_attention=True) for _ in range(n_layer)]
+            [ResidualAttentionBlock(n_state, n_head, lora_conf=lora_conf, merge_weights=merge_weights, cross_attention=True) for _ in range(n_layer)]
         )
         self.ln = LayerNorm(n_state)
 
@@ -242,7 +262,7 @@ class TextDecoder(nn.Module):
 
 
 class Whisper_lora(nn.Module):
-    def __init__(self, dims: ModelDimensions, lora_conf: LoRAConf):
+    def __init__(self, dims: ModelDimensions, lora_conf: LoRAConf, merge_weights: bool=False):
         super().__init__()
         self.dims = dims
         self.lora_conf = lora_conf
@@ -253,6 +273,7 @@ class Whisper_lora(nn.Module):
             self.dims.n_audio_head,
             self.dims.n_audio_layer,
             self.lora_conf,
+            merge_weights,
         )
         self.decoder = TextDecoder(
             self.dims.n_vocab,
@@ -261,6 +282,7 @@ class Whisper_lora(nn.Module):
             self.dims.n_text_head,
             self.dims.n_text_layer,
             self.lora_conf,
+            merge_weights,
         )
         all_heads = torch.zeros(
             self.dims.n_text_layer, self.dims.n_text_head, dtype=torch.bool
