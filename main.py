@@ -38,6 +38,8 @@ import evaluation
 
 SEED = 3407
 pl.seed_everything(SEED, workers=True)
+checkpoint_name = 'checkpoint'
+lora_cp_name = 'lora.ckpt'
 
 def return_folder_name(cfg_name, model_name, learning_rate):
     #project_dir = 'project/cp_whisper_{:s}_lr_{:3.0e}'.format(model_name, learning_rate)
@@ -266,7 +268,15 @@ class WhisperModelModule(LightningModule):
                  ps_tokens=[220, 50199]) -> None:
         super().__init__()
         self.options = whisper.DecodingOptions(language=lang, without_timestamps=True)
-        self.model = whisper.load_model(model_name)
+
+        if hasattr(cfg, 'lora') and cfg.lora:
+            lora_r = cfg.lora_r if hasattr(cfg, 'lora_r') else 8
+            lora_alpha = cfg.lora_alpha if hasattr(cfg, 'lora_alpha') else 8
+            lora_dropout = cfg.lora_dropout if hasattr(cfg, 'lora_dropout') else 0.0
+            self.model = whisper.load_lora_model(model_name, lora_r, lora_alpha, lora_dropout)
+        else:
+            self.model = whisper.load_model(model_name)
+        
         self.tokenizer = whisper.tokenizer.get_tokenizer(True, language="fr", task=self.options.task)
         # flag of fine-tuning
         #  by default False
@@ -274,7 +284,6 @@ class WhisperModelModule(LightningModule):
         #  by default True
         self.finetune_decoder = cfg.finetune_decoder if hasattr(cfg, 'finetune_decoder') else True
 
-        
         # number of mels
         self.nmel = self.model.dims.n_mels
 
@@ -476,7 +485,7 @@ def train(cfg, cfg_name):
     
     checkpoint_callback = ModelCheckpoint(
         dirpath=cp_dir,
-        filename="checkpoint-{epoch:04d}-{val_loss:.4f}-{val_cer:.4f}-{val_wer:.4f}",
+        filename=checkpoint_name + "-{epoch:04d}-{val_loss:.4f}-{val_cer:.4f}-{val_wer:.4f}",
         save_top_k=-1 # all model save
     )
     checkpoint_callback.CHECKPOINT_EQUALS_CHAR = '-'
@@ -484,6 +493,12 @@ def train(cfg, cfg_name):
     callback_list = [checkpoint_callback, LearningRateMonitor(logging_interval="epoch")]
     model = WhisperModelModule(cfg, model_name, lang, train_pairs, eval_pairs)
 
+    # operation for lora
+    if hasattr(cfg, 'lora') and cfg.lora:
+        # follow https://github.com/microsoft/LoRA?tab=readme-ov-file
+        # lora.mark_only_lora_as_trainable(model)
+        whisper.set_lora_before_training(model.model)
+    
     trainer = Trainer(
         # precision=16,
         accelerator="gpu",
@@ -496,6 +511,13 @@ def train(cfg, cfg_name):
 
     trainer.fit(model)
     print("Training finished")
+
+    if hasattr(cfg, 'lora') and cfg.lora:
+        # in fact, no need to save model states, just need to save lora
+        # but we keep the code compatible and save model states as well
+        lora_cp_path = Path(cp_dir) / lora_cp_name
+        whisper.save_lora_after_training(model.model, lora_cp_path)
+    return
 
 
 def inference(cfg, cfg_name):
@@ -529,19 +551,33 @@ def inference(cfg, cfg_name):
     # -----------------------------
     # 2. Load checkpoint and prepare model
     # -----------------------------
-    # sorted by epoch
-    checkpoint = sorted(glob.glob("*.ckpt", root_dir=cp_dir), key=lambda x: x.split('-')[1])[-1]
-    checkpoint_path = "{:s}/{:s}".format(cp_dir, checkpoint)
-    print("Use {:s}".format(checkpoint_path))
-    
-    state_dict = torch.load(checkpoint_path)
-    state_dict = state_dict['state_dict']
-
+    # load pre-trained model
     whisper_model = WhisperModelModule(cfg, model_name, lang)
-    whisper_model.load_state_dict(state_dict)
+    
+    if hasattr(cfg, 'lora') and cfg.lora:
+        woptions = whisper.DecodingOptions(language="fr", without_timestamps=True, fp16=False)
+        
+        # if lora is on, no need to load checkpoint-epoch with whisper
+        #whisper_model.load_state_dict(state_dict, strict=False)
+        # load lora weights only
+        lora_path = Path(cp_dir) / lora_cp_name
+        lora = torch.load(lora_path)
+        whisper_model.model.load_state_dict(lora, strict=False)
+        
+    else:
+        woptions = whisper.DecodingOptions(language="fr", without_timestamps=True)
 
-    woptions = whisper.DecodingOptions(language="fr", without_timestamps=True)
+        # without lora
+        # sorted by epoch
+        checkpoint = sorted(glob.glob("{:s}*.ckpt".format(checkpoint_name), root_dir=cp_dir),
+                            key=lambda x: x.split('-')[1])[-1]
+        checkpoint_path = "{:s}/{:s}".format(cp_dir, checkpoint)
+        print("Use {:s}".format(checkpoint_path))
+        state_dict = torch.load(checkpoint_path)
+        state_dict = state_dict['state_dict']
+        whisper_model.load_state_dict(state_dict)
 
+    whisper_model.model.eval()
     dataset = TedXSpeechDataset(eval_pairs, wtokenizer, cfg, whisper_model.nmel)
     loader = torch.utils.data.DataLoader(dataset, batch_size=2, collate_fn=WhisperDataCollatorWhithPadding())
     
@@ -552,10 +588,22 @@ def inference(cfg, cfg_name):
     res = []
 
     for b in tqdm(loader):
-        input_ids = b["input_ids"].half().cuda()
+
+        # convert dtype for input and output
+        #if woptions.fp16:
+        #    input_ids = b["input_ids"].half().cuda()
+        #else:
+        #    input_ids = b["input_ids"].cuda()
+
+        input_ids = b["input_ids"].cuda()
         labels = b["labels"].long()
+
+        # inference
         with torch.no_grad():
+            # whisper decoding
             results = whisper_model.model.decode(input_ids, woptions)
+
+            # save results
             for r in results:
                 res.append(r.text)
 
@@ -564,7 +612,7 @@ def inference(cfg, cfg_name):
                 ref = wtokenizer.decode(remove_special_token(wtokenizer.encoding, l))
                 refs.append(ref)
 
-    # save the output
+    # save to output
     save_output = Path(save_dir) / '{:s}.inference.txt.pkl'.format(checkpoint)
     with open(save_output, 'wb') as file_ptr:
         pickle.dump([res, refs], file_ptr)

@@ -9,6 +9,7 @@ qsub*
 
 # Distribution / packaging
 .Python
+whisper/
 project/
 project*/
 build/
