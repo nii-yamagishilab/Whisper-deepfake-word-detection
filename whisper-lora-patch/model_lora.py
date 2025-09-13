@@ -1,21 +1,17 @@
 import base64
 import gzip
 from contextlib import contextmanager
-
 from dataclasses import dataclass
-from typing import Dict
-from typing import Iterable, Optional
+from typing import Dict, Iterable, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch import Tensor
-from torch import nn
-import loralib as lora
+from torch import Tensor, nn
 
-from .transcribe import transcribe as transcribe_function
-from .decoding import detect_language as detect_language_function, decode as decode_function
 from .decoding import decode as decode_function
+from .decoding import detect_language as detect_language_function
+from .transcribe import transcribe as transcribe_function
 
 try:
     from torch.nn.functional import scaled_dot_product_attention
@@ -25,12 +21,7 @@ except (ImportError, RuntimeError, OSError):
     scaled_dot_product_attention = None
     SDPA_AVAILABLE = False
 
-
-@dataclass
-class LoRAConf:
-    lora_r: int
-    lora_alpha: int
-    lora_dropout: float
+import loralib_patch as lora
 
 
 @dataclass
@@ -46,6 +37,12 @@ class ModelDimensions:
     n_text_head: int
     n_text_layer: int
 
+@dataclass
+class LoRAConf:
+    lora_r: int
+    lora_alpha: int
+    lora_dropout: float
+
 
 class LayerNorm(nn.LayerNorm):
     def forward(self, x: Tensor) -> Tensor:
@@ -55,12 +52,16 @@ class LayerNorm(nn.LayerNorm):
 class Linear(nn.Linear):
     def forward(self, x: Tensor) -> Tensor:
         return F.linear(
-            x, self.weight.to(x.dtype), None if self.bias is None else self.bias.to(x.dtype)
+            x,
+            self.weight.to(x.dtype),
+            None if self.bias is None else self.bias.to(x.dtype),
         )
 
 
 class Conv1d(nn.Conv1d):
-    def _conv_forward(self, x: Tensor, weight: Tensor, bias: Optional[Tensor]) -> Tensor:
+    def _conv_forward(
+            self, x: Tensor, weight: Tensor, bias: Optional[Tensor]
+    ) -> Tensor:
         return super()._conv_forward(
             x, weight.to(x.dtype), None if bias is None else bias.to(x.dtype)
         )
@@ -75,14 +76,27 @@ def sinusoids(length, channels, max_timescale=10000):
     return torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim=1)
 
 
+@contextmanager
+def disable_sdpa():
+    prev_state = MultiHeadAttention.use_sdpa
+    try:
+        MultiHeadAttention.use_sdpa = False
+        yield
+    finally:
+        MultiHeadAttention.use_sdpa = prev_state
+
+        
 class MultiHeadAttention(nn.Module):
+    use_sdpa = True
+    
     def __init__(self, n_state: int, n_head: int, lora_conf: LoRAConf):
         super().__init__()
         self.n_head = n_head
-        self.query = lora.Linear(n_state, n_state, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout, merge_weights=False)
-        self.key = lora.Linear(n_state, n_state, bias=False, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout, merge_weights=False)
-        self.value = lora.Linear(n_state, n_state, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout, merge_weights=False)
-        self.out = lora.Linear(n_state, n_state, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout, merge_weights=False)
+        self.query = lora.Linear(n_state, n_state, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout)
+        self.key = lora.Linear(n_state, n_state, bias=False, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout)
+        self.value = lora.Linear(n_state, n_state, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout)
+        self.out = lora.Linear(n_state, n_state, r=lora_conf.lora_r, lora_alpha=lora_conf.lora_alpha, lora_dropout=lora_conf.lora_dropout)
+        
     def forward(
         self,
         x: Tensor,
@@ -105,20 +119,32 @@ class MultiHeadAttention(nn.Module):
         wv, qk = self.qkv_attention(q, k, v, mask)
         return self.out(wv), qk
 
-    def qkv_attention(self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None):
+    def qkv_attention(
+        self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         n_batch, n_ctx, n_state = q.shape
         scale = (n_state // self.n_head) ** -0.25
-        q = q.view(*q.shape[:2], self.n_head, -1).permute(0, 2, 1, 3) * scale
-        k = k.view(*k.shape[:2], self.n_head, -1).permute(0, 2, 3, 1) * scale
+        q = q.view(*q.shape[:2], self.n_head, -1).permute(0, 2, 1, 3)
+        k = k.view(*k.shape[:2], self.n_head, -1).permute(0, 2, 1, 3)
         v = v.view(*v.shape[:2], self.n_head, -1).permute(0, 2, 1, 3)
 
-        qk = q @ k
-        if mask is not None:
-            qk = qk + mask[:n_ctx, :n_ctx]
-        qk = qk.float()
+        if SDPA_AVAILABLE and MultiHeadAttention.use_sdpa:
+            a = scaled_dot_product_attention(
+                q, k, v, is_causal=mask is not None and n_ctx > 1
+            )
+            out = a.permute(0, 2, 1, 3).flatten(start_dim=2)
+            qk = None
+        else:
+            qk = (q * scale) @ (k * scale).transpose(-1, -2)
+            if mask is not None:
+                qk = qk + mask[:n_ctx, :n_ctx]
+            qk = qk.float()
 
-        w = F.softmax(qk, dim=-1).to(q.dtype)
-        return (w @ v).permute(0, 2, 1, 3).flatten(start_dim=2), qk.detach()
+            w = F.softmax(qk, dim=-1).to(q.dtype)
+            out = (w @ v).permute(0, 2, 1, 3).flatten(start_dim=2)
+            qk = qk.detach()
+
+        return out, qk
 
 
 class ResidualAttentionBlock(nn.Module):
@@ -269,7 +295,7 @@ class Whisper_lora(nn.Module):
 
     @property
     def is_multilingual(self):
-        return self.dims.n_vocab == 51865
+        return self.dims.n_vocab >= 51865
 
     def install_kv_cache_hooks(self, cache: Optional[dict] = None):
         """
@@ -289,8 +315,9 @@ class Whisper_lora(nn.Module):
         hooks = []
 
         def save_to_cache(module, _, output):
-            if module not in cache or output.shape[1] > self.decoder.positional_embedding.shape[0]:
-                cache[module] = output  # save as-is, for the first token or cross attention
+            if module not in cache or output.shape[1] > self.dims.n_text_ctx:
+                # save as-is, for the first token or cross attention
+                cache[module] = output
             else:
                 cache[module] = torch.cat([cache[module], output], dim=1).detach()
             return cache[module]

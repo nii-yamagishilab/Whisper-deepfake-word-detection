@@ -555,7 +555,7 @@ def inference(cfg, cfg_name):
     whisper_model = WhisperModelModule(cfg, model_name, lang)
     
     if hasattr(cfg, 'lora') and cfg.lora:
-        woptions = whisper.DecodingOptions(language="fr", without_timestamps=True, fp16=False)
+        woptions = whisper.DecodingOptions(language="fr", without_timestamps=True, fp16=True)
         
         # if lora is on, no need to load checkpoint-epoch with whisper
         #whisper_model.load_state_dict(state_dict, strict=False)
@@ -563,6 +563,9 @@ def inference(cfg, cfg_name):
         lora_path = Path(cp_dir) / lora_cp_name
         lora = torch.load(lora_path)
         whisper_model.model.load_state_dict(lora, strict=False)
+
+        # checkpoint, dummy for saving output
+        checkpoint = lora_cp_name
         
     else:
         woptions = whisper.DecodingOptions(language="fr", without_timestamps=True)

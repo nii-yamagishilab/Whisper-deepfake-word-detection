@@ -14,7 +14,8 @@ from .model import ModelDimensions, Whisper
 from .model_lora import Whisper_lora
 from .transcribe import transcribe
 from .version import __version__
-import loralib as lora
+import loralib_patch as lora
+
 @dataclass
 class LoRAConf:
     lora_r: int
