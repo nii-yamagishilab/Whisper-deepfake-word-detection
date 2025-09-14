@@ -196,13 +196,20 @@ def load_lora_model(name, lora_r=8, lora_alpha=8, lora_dropout=0.0,
     del checkpoint_file
 
     dims = ModelDimensions(**checkpoint["dims"])
-    
-    lora_conf = LoRAConf(
-        lora_r = lora_r,
-        lora_alpha = lora_alpha,
-        lora_dropout = lora_dropout,
-    )
-    model = Whisper_lora(dims, lora_conf, merge_weights).to(device)
+
+
+    # if lora_conf is provided as a list
+    if type(lora_r) is list or type(lora_alpha) is list or type(lora_dropout) is list:
+        # create list of lora_conf
+        lora_confs = []
+        for lora_r_, lora_a_, lora_d_ in zip(lora_r, lora_alpha, lora_dropout):
+            lora_confs.append(LoRAConf(lora_r = lora_r_, lora_alpha = lora_a_, lora_dropout = lora_d_))
+    else:
+        # create a list with one conf. this will be used by all layers
+        lora_confs = [LoRAConf(lora_r = lora_r, lora_alpha = lora_alpha, lora_dropout = lora_dropout)]
+        
+    model = Whisper_lora(dims, lora_confs, merge_weights).to(device)
+
     #checkpoint = torch.load(loadfrom)
     model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 

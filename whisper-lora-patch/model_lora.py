@@ -2,7 +2,7 @@ import base64
 import gzip
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple, List
 
 import numpy as np
 import torch
@@ -196,14 +196,40 @@ class ResidualAttentionBlock(nn.Module):
 
 
 class AudioEncoder(nn.Module):
-    def __init__(self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, lora_conf: LoRAConf, merge_weights: bool):
+    def __init__(self,
+                 n_mels: int,
+                 n_ctx: int,
+                 n_state: int,
+                 n_head: int,
+                 n_layer: int,
+                 lora_confs: List[LoRAConf],
+                 merge_weights: bool):
         super().__init__()
-        self.conv1 = Conv1d(n_mels, n_state, kernel_size=3, padding=1)
-        self.conv2 = Conv1d(n_state, n_state, kernel_size=3, stride=2, padding=1)
-        self.register_buffer("positional_embedding", sinusoids(n_ctx, n_state))
 
+        #
+        lora_conf_conv1 = lora_confs[0]
+        self.conv1 = lora.Conv1d(n_mels, n_state,kernel_size=3, padding=1,
+                                 r = lora_conf_conv1.lora_r, lora_alpha = lora_conf_conv1.lora_alpha,
+                                 lora_dropout = lora_conf_conv1.lora_dropout,
+                                 merge_weights = merge_weights)
+
+        #
+        lora_conf_conv2 = lora_confs[1]
+        self.conv2 = lora.Conv1d(n_state, n_state, kernel_size=3, stride=2, padding=1,
+                                 r = lora_conf_conv2.lora_r, lora_alpha = lora_conf_conv2.lora_alpha,
+                                 lora_dropout = lora_conf_conv2.lora_dropout,
+                                 merge_weights = merge_weights)
+        
+        self.register_buffer("positional_embedding", sinusoids(n_ctx, n_state))
+        
+        # transformer blocks
+        lora_conf_fft = lora_confs[2:]
+
+        assert len(lora_conf_fft) == n_layer, \
+            "#. LoRA config (:d) != #. blocks in encoder ({:d})".format(len(lora_conf_fft), n_layer)
+        
         self.blocks: Iterable[ResidualAttentionBlock] = nn.ModuleList(
-            [ResidualAttentionBlock(n_state, n_head, lora_conf=lora_conf, merge_weights=merge_weights) for _ in range(n_layer)]
+            [ResidualAttentionBlock(n_state, n_head, lora_conf=lora_conf_fft[idx], merge_weights=merge_weights) for idx in range(n_layer)]
         )
         self.ln_post = LayerNorm(n_state)
 
@@ -227,14 +253,24 @@ class AudioEncoder(nn.Module):
 
 
 class TextDecoder(nn.Module):
-    def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int, lora_conf: LoRAConf, merge_weights: bool):
+    def __init__(self,
+                 n_vocab: int,
+                 n_ctx: int,
+                 n_state: int,
+                 n_head: int,
+                 n_layer: int,
+                 lora_confs: List[LoRAConf],
+                 merge_weights: bool):
+        
         super().__init__()
 
         self.token_embedding = nn.Embedding(n_vocab, n_state)
         self.positional_embedding = nn.Parameter(torch.empty(n_ctx, n_state))
 
+        assert len(lora_confs) == n_layer, \
+            "#. LoRA config (:d) != #. blocks in decoder (:d)".format(len(lora_confs), n_layer)
         self.blocks: Iterable[ResidualAttentionBlock] = nn.ModuleList(
-            [ResidualAttentionBlock(n_state, n_head, lora_conf=lora_conf, merge_weights=merge_weights, cross_attention=True) for _ in range(n_layer)]
+            [ResidualAttentionBlock(n_state, n_head, lora_conf=lora_confs[idx], merge_weights=merge_weights, cross_attention=True) for idx in range(n_layer)]
         )
         self.ln = LayerNorm(n_state)
 
@@ -262,17 +298,33 @@ class TextDecoder(nn.Module):
 
 
 class Whisper_lora(nn.Module):
-    def __init__(self, dims: ModelDimensions, lora_conf: LoRAConf, merge_weights: bool=False):
+    def __init__(self, dims: ModelDimensions, lora_confs: List[LoRAConf], merge_weights: bool=False):
         super().__init__()
         self.dims = dims
-        self.lora_conf = lora_conf
+
+        # number of layer =
+        # encoder has two conv layers
+        num_block_encoder = 2 + self.dims.n_audio_layer
+        num_block_decoder = self.dims.n_text_layer
+        num_block =  num_block_encoder + num_block_decoder
+        
+        # parse the confs
+        if len(lora_confs) == 1:
+            # duplicate to each layer
+            self.lora_confs = lora_confs * num_block
+        else:    
+            self.lora_confs = lora_confs
+        
+        # make sure the number of configuration is equal to #block
+        assert len(self.lora_confs) == num_block, "#. LoRA config != #. blocks"
+        
         self.encoder = AudioEncoder(
             self.dims.n_mels,
             self.dims.n_audio_ctx,
             self.dims.n_audio_state,
             self.dims.n_audio_head,
             self.dims.n_audio_layer,
-            self.lora_conf,
+            self.lora_confs[0:num_block_encoder],
             merge_weights,
         )
         self.decoder = TextDecoder(
@@ -281,7 +333,7 @@ class Whisper_lora(nn.Module):
             self.dims.n_text_state,
             self.dims.n_text_head,
             self.dims.n_text_layer,
-            self.lora_conf,
+            self.lora_confs[num_block_encoder:],
             merge_weights,
         )
         all_heads = torch.zeros(

@@ -274,9 +274,10 @@ class WhisperModelModule(LightningModule):
             lora_r = cfg.lora_r if hasattr(cfg, 'lora_r') else 8
             lora_alpha = cfg.lora_alpha if hasattr(cfg, 'lora_alpha') else 8
             lora_dropout = cfg.lora_dropout if hasattr(cfg, 'lora_dropout') else 0.0
+
             # inference, we merge the LoRA weights back to the original weights
-            self.model = whisper.load_lora_model(model_name, lora_r, lora_alpha, lora_dropout,
-                                                 merge_weights = inference_flag)
+            self.model = whisper.load_lora_model(
+                model_name, lora_r, lora_alpha, lora_dropout, merge_weights = inference_flag)
         else:
             self.model = whisper.load_model(model_name)
         
