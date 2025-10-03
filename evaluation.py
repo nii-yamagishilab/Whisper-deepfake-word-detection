@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import re
 import sys
 import glob
 import pickle
@@ -8,13 +9,17 @@ import evaluate
 import jiwer
 
 vocoding_label = "!!!!!!"
+vocoding_pattern = re.compile(r'\s*!{6,}\s*')
 
 # -----------------------------
 # 1. Helper functions for vocoding evaluation
 # -----------------------------
+def preprocess_vocoding_tags(text: str):
+    return vocoding_pattern.sub(' ' + vocoding_label + ' ', text)
+
 def remove_vocoding_labels(text: str):
     return text.replace(vocoding_label + ' ', '')
-
+    
 def extract_vocoding_labels(text: str):
     """
     Given a text with vocoded words prefixed by '!!!!!!',
@@ -38,16 +43,16 @@ def extract_vocoding_labels(text: str):
 def compute_detection_metrics(refs, preds, old_method=False):
     a = b = c = d = 0
 
-    for ref_text, hyp_text in zip(refs, preds):
+    for idx, (ref_text, hyp_text) in enumerate(zip(refs, preds)):
         ref_labels = extract_vocoding_labels(ref_text)
         hyp_labels = extract_vocoding_labels(hyp_text)
-
-
+        print("REF: ", ref_text)
+        print("HYP: ", hyp_text)
+        
         # find the alignment
         ref_text = prepro(' '.join(x[1] for x in ref_labels))
         hyp_text = prepro(' '.join(x[1] for x in hyp_labels))
         align = jiwer.process_words([ref_text], [hyp_text]).alignments[0]
-
         
         if old_method:
             min_len = min(len(ref_labels), len(hyp_labels))
@@ -65,7 +70,8 @@ def compute_detection_metrics(refs, preds, old_method=False):
                 elif gt == "spoof" and pred == "bonafide":
                     d += 1  # false positive
         else:
-            for chunk in align:
+
+            for chunk in align:                
                 ref_s, ref_e = chunk.ref_start_idx, chunk.ref_end_idx
                 hyp_s, hyp_e = chunk.hyp_start_idx, chunk.hyp_end_idx
                 
@@ -151,6 +157,11 @@ def main(input_file):
     
 
     res, refs = data[0], data[1]
+    
+    # preprocess
+    res = [preprocess_vocoding_tags(x) for x in res]
+    refs = [preprocess_vocoding_tags(x) for x in refs]
+    
     res_raw = [remove_vocoding_labels(x) for x in res]
     refs_raw = [remove_vocoding_labels(x) for x in refs]
     

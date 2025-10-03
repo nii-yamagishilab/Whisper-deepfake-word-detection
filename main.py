@@ -34,7 +34,7 @@ from transformers import (
 from transformers import WhisperTokenizer
 import evaluate
 import evaluation
-
+from utils import rawboost
 
 SEED = 3407
 pl.seed_everything(SEED, workers=True)
@@ -177,7 +177,7 @@ def process_all_datasets(base_dir, sample_rate, text_max_length=1000, audio_max_
     return all_pairs
 
 class TedXSpeechDataset(torch.utils.data.Dataset):
-    def __init__(self, audio_info_list, tokenizer, cfg, nmel, ps_tokens=[]) -> None:
+    def __init__(self, audio_info_list, tokenizer, cfg, nmel, ps_tokens=[], inf_flag=False) -> None:
         super().__init__()
 
         self.audio_info_list = audio_info_list
@@ -190,6 +190,19 @@ class TedXSpeechDataset(torch.utils.data.Dataset):
         self.w_oth_token = cfg.weight_other_token if hasattr(cfg, 'weight_other_token') else 1.0
         self.ps_tokens = ps_tokens
 
+        # trimming space
+        self.trim_led_pad = cfg.trim_leading_pad if hasattr(cfg, 'trim_leading_pad') else 0
+        # use augmentation 
+        self.use_rawboost = cfg.use_rawboost if hasattr(cfg, 'use_rawboost') else False
+        if inf_flag:
+            self.use_rawboost = False
+            #print("rawboost is off during inference")
+        if self.use_rawboost:
+            self.rawboost_config = cfg.rawboost_config
+        else:
+            self.rawboost_config = None
+
+        
     def __len__(self):
         return len(self.audio_info_list)
     
@@ -199,9 +212,27 @@ class TedXSpeechDataset(torch.utils.data.Dataset):
         # audio
         audio = load_wave(audio_path, sample_rate=self.sample_rate)
         audio = whisper.pad_or_trim(audio.flatten())
+
+        if self.use_rawboost and self.rawboost_config is not None:
+            audio = rawboost.process_Rawboost_feature(
+                audio, sr=self.sample_rate,
+                args=self.rawboost_config,
+                algo=self.rawboost_config['algo'])
+            
+        
         mel = whisper.log_mel_spectrogram(audio, self.nmel)
 
         # print(text)
+        if self.trim_led_pad == 1:
+            # only remove beginning 220
+            text = text.rstrip().lstrip()
+        elif self.trim_led_pad == 2:
+            # remove every 220 before
+            text = text.replace(' '+evaluation.vocoding_label, evaluation.vocoding_label)
+        elif self.trim_led_pad == 3:
+            text = text.replace(evaluation.vocoding_label+' ', evaluation.vocoding_label)
+        elif self.trim_led_pad == 4:
+            text = text.replace(' '+evaluation.vocoding_label+' ', evaluation.vocoding_label)
         text = [*self.tokenizer.sot_sequence_including_notimestamps] + self.tokenizer.encode(text)
 
         # print(text)
@@ -585,7 +616,7 @@ def inference(cfg, cfg_name):
         whisper_model.load_state_dict(state_dict)
 
     whisper_model.model.eval()
-    dataset = TedXSpeechDataset(eval_pairs, wtokenizer, cfg, whisper_model.nmel)
+    dataset = TedXSpeechDataset(eval_pairs, wtokenizer, cfg, whisper_model.nmel, inf_flag=True)
     loader = torch.utils.data.DataLoader(dataset, batch_size=2, collate_fn=WhisperDataCollatorWhithPadding())
     
     # -----------------------------

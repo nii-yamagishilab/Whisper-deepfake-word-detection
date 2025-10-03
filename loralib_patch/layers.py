@@ -5,6 +5,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 
 import math
 from typing import Optional, List
@@ -291,10 +292,19 @@ class ConvLoRA(nn.Module, LoRALayer):
         if self.r > 0 and not self.merged:
             return self.conv._conv_forward(
                 x, 
-                self.conv.weight + (self.lora_B @ self.lora_A).view(self.conv.weight.shape) * self.scaling,
-                self.conv.bias
+                (self.conv.weight + (self.lora_B @ self.lora_A).view(self.conv.weight.shape) * self.scaling).to(x.dtype),
+                None if self.conv.bias is None else self.conv.bias.to(x.dtype)
             )
         return self.conv(x)
+
+
+class _core_Conv1d(nn.Conv1d):
+    def _conv_forward(
+        self, x: Tensor, weight: Tensor, bias: Optional[Tensor]
+    ) -> Tensor:
+        return super()._conv_forward(
+            x, weight.to(x.dtype), None if bias is None else bias.to(x.dtype)
+        )
 
 class Conv2d(ConvLoRA):
     def __init__(self, *args, **kwargs):
@@ -302,7 +312,7 @@ class Conv2d(ConvLoRA):
 
 class Conv1d(ConvLoRA):
     def __init__(self, *args, **kwargs):
-        super(Conv1d, self).__init__(nn.Conv1d, *args, **kwargs)
+        super(Conv1d, self).__init__(_core_Conv1d, *args, **kwargs)
 
 # Can Extend to other ones like this
 
