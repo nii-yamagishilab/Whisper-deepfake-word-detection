@@ -25,3 +25,4 @@ dependencies:
     - jiwer==4.0.0
     - transformers==4.47.1
     - tqdm==4.67.1
+    - loralib @ git+https://github.com/microsoft/LoRA

@@ -34,10 +34,12 @@ from transformers import (
 from transformers import WhisperTokenizer
 import evaluate
 import evaluation
-
+from utils import rawboost
 
 SEED = 3407
 pl.seed_everything(SEED, workers=True)
+checkpoint_name = 'checkpoint'
+lora_cp_name = 'lora.ckpt'
 
 def return_folder_name(cfg_name, model_name, learning_rate):
     #project_dir = 'project/cp_whisper_{:s}_lr_{:3.0e}'.format(model_name, learning_rate)
@@ -175,7 +177,7 @@ def process_all_datasets(base_dir, sample_rate, text_max_length=1000, audio_max_
     return all_pairs
 
 class TedXSpeechDataset(torch.utils.data.Dataset):
-    def __init__(self, audio_info_list, tokenizer, cfg, nmel, ps_tokens=[]) -> None:
+    def __init__(self, audio_info_list, tokenizer, cfg, nmel, ps_tokens=[], inf_flag=False) -> None:
         super().__init__()
 
         self.audio_info_list = audio_info_list
@@ -188,6 +190,19 @@ class TedXSpeechDataset(torch.utils.data.Dataset):
         self.w_oth_token = cfg.weight_other_token if hasattr(cfg, 'weight_other_token') else 1.0
         self.ps_tokens = ps_tokens
 
+        # trimming space
+        self.trim_led_pad = cfg.trim_leading_pad if hasattr(cfg, 'trim_leading_pad') else 0
+        # use augmentation 
+        self.use_rawboost = cfg.use_rawboost if hasattr(cfg, 'use_rawboost') else False
+        if inf_flag:
+            self.use_rawboost = False
+            #print("rawboost is off during inference")
+        if self.use_rawboost:
+            self.rawboost_config = cfg.rawboost_config
+        else:
+            self.rawboost_config = None
+
+        
     def __len__(self):
         return len(self.audio_info_list)
     
@@ -197,9 +212,27 @@ class TedXSpeechDataset(torch.utils.data.Dataset):
         # audio
         audio = load_wave(audio_path, sample_rate=self.sample_rate)
         audio = whisper.pad_or_trim(audio.flatten())
+
+        if self.use_rawboost and self.rawboost_config is not None:
+            audio = rawboost.process_Rawboost_feature(
+                audio, sr=self.sample_rate,
+                args=self.rawboost_config,
+                algo=self.rawboost_config['algo'])
+            
+        
         mel = whisper.log_mel_spectrogram(audio, self.nmel)
 
         # print(text)
+        if self.trim_led_pad == 1:
+            # only remove beginning 220
+            text = text.rstrip().lstrip()
+        elif self.trim_led_pad == 2:
+            # remove every 220 before
+            text = text.replace(' '+evaluation.vocoding_label, evaluation.vocoding_label)
+        elif self.trim_led_pad == 3:
+            text = text.replace(evaluation.vocoding_label+' ', evaluation.vocoding_label)
+        elif self.trim_led_pad == 4:
+            text = text.replace(' '+evaluation.vocoding_label+' ', evaluation.vocoding_label)
         text = [*self.tokenizer.sot_sequence_including_notimestamps] + self.tokenizer.encode(text)
 
         # print(text)
@@ -263,10 +296,22 @@ class WhisperModelModule(LightningModule):
                  lang="fr",
                  train_dataset=[],
                  eval_dataset=[],
-                 ps_tokens=[220, 50199]) -> None:
+                 ps_tokens=[220, 50199],
+                 inference_flag=False) -> None:
         super().__init__()
         self.options = whisper.DecodingOptions(language=lang, without_timestamps=True)
-        self.model = whisper.load_model(model_name)
+
+        if hasattr(cfg, 'lora') and cfg.lora:
+            lora_r = cfg.lora_r if hasattr(cfg, 'lora_r') else 8
+            lora_alpha = cfg.lora_alpha if hasattr(cfg, 'lora_alpha') else 8
+            lora_dropout = cfg.lora_dropout if hasattr(cfg, 'lora_dropout') else 0.0
+
+            # inference, we merge the LoRA weights back to the original weights
+            self.model = whisper.load_lora_model(
+                model_name, lora_r, lora_alpha, lora_dropout, merge_weights = inference_flag)
+        else:
+            self.model = whisper.load_model(model_name)
+        
         self.tokenizer = whisper.tokenizer.get_tokenizer(True, language="fr", task=self.options.task)
         # flag of fine-tuning
         #  by default False
@@ -274,7 +319,6 @@ class WhisperModelModule(LightningModule):
         #  by default True
         self.finetune_decoder = cfg.finetune_decoder if hasattr(cfg, 'finetune_decoder') else True
 
-        
         # number of mels
         self.nmel = self.model.dims.n_mels
 
@@ -476,7 +520,7 @@ def train(cfg, cfg_name):
     
     checkpoint_callback = ModelCheckpoint(
         dirpath=cp_dir,
-        filename="checkpoint-{epoch:04d}-{val_loss:.4f}-{val_cer:.4f}-{val_wer:.4f}",
+        filename=checkpoint_name + "-{epoch:04d}-{val_loss:.4f}-{val_cer:.4f}-{val_wer:.4f}",
         save_top_k=-1 # all model save
     )
     checkpoint_callback.CHECKPOINT_EQUALS_CHAR = '-'
@@ -484,6 +528,12 @@ def train(cfg, cfg_name):
     callback_list = [checkpoint_callback, LearningRateMonitor(logging_interval="epoch")]
     model = WhisperModelModule(cfg, model_name, lang, train_pairs, eval_pairs)
 
+    # operation for lora
+    if hasattr(cfg, 'lora') and cfg.lora:
+        # follow https://github.com/microsoft/LoRA?tab=readme-ov-file
+        # lora.mark_only_lora_as_trainable(model)
+        whisper.set_lora_before_training(model.model)
+    
     trainer = Trainer(
         # precision=16,
         accelerator="gpu",
@@ -496,6 +546,13 @@ def train(cfg, cfg_name):
 
     trainer.fit(model)
     print("Training finished")
+
+    if hasattr(cfg, 'lora') and cfg.lora:
+        # in fact, no need to save model states, just need to save lora
+        # but we keep the code compatible and save model states as well
+        lora_cp_path = Path(cp_dir) / lora_cp_name
+        whisper.save_lora_after_training(model.model, lora_cp_path)
+    return
 
 
 def inference(cfg, cfg_name):
@@ -529,20 +586,37 @@ def inference(cfg, cfg_name):
     # -----------------------------
     # 2. Load checkpoint and prepare model
     # -----------------------------
-    # sorted by epoch
-    checkpoint = sorted(glob.glob("*.ckpt", root_dir=cp_dir), key=lambda x: x.split('-')[1])[-1]
-    checkpoint_path = "{:s}/{:s}".format(cp_dir, checkpoint)
-    print("Use {:s}".format(checkpoint_path))
+    # load pre-trained model
+    whisper_model = WhisperModelModule(cfg, model_name, lang, inference_flag=True)
     
-    state_dict = torch.load(checkpoint_path)
-    state_dict = state_dict['state_dict']
+    if hasattr(cfg, 'lora') and cfg.lora:
+        woptions = whisper.DecodingOptions(language="fr", without_timestamps=True, fp16=True)
+        
+        # if lora is on, no need to load checkpoint-epoch with whisper
+        #whisper_model.load_state_dict(state_dict, strict=False)
+        # load lora weights only
+        lora_path = Path(cp_dir) / lora_cp_name
+        lora = torch.load(lora_path)
+        whisper_model.model.load_state_dict(lora, strict=False)
 
-    whisper_model = WhisperModelModule(cfg, model_name, lang)
-    whisper_model.load_state_dict(state_dict)
+        # checkpoint, dummy for saving output
+        checkpoint = lora_cp_name
+        
+    else:
+        woptions = whisper.DecodingOptions(language="fr", without_timestamps=True)
 
-    woptions = whisper.DecodingOptions(language="fr", without_timestamps=True)
+        # without lora
+        # sorted by epoch
+        checkpoint = sorted(glob.glob("{:s}*.ckpt".format(checkpoint_name), root_dir=cp_dir),
+                            key=lambda x: x.split('-')[1])[-1]
+        checkpoint_path = "{:s}/{:s}".format(cp_dir, checkpoint)
+        print("Use {:s}".format(checkpoint_path))
+        state_dict = torch.load(checkpoint_path)
+        state_dict = state_dict['state_dict']
+        whisper_model.load_state_dict(state_dict)
 
-    dataset = TedXSpeechDataset(eval_pairs, wtokenizer, cfg, whisper_model.nmel)
+    whisper_model.model.eval()
+    dataset = TedXSpeechDataset(eval_pairs, wtokenizer, cfg, whisper_model.nmel, inf_flag=True)
     loader = torch.utils.data.DataLoader(dataset, batch_size=2, collate_fn=WhisperDataCollatorWhithPadding())
     
     # -----------------------------
@@ -552,10 +626,22 @@ def inference(cfg, cfg_name):
     res = []
 
     for b in tqdm(loader):
-        input_ids = b["input_ids"].half().cuda()
+
+        # convert dtype for input and output
+        #if woptions.fp16:
+        #    input_ids = b["input_ids"].half().cuda()
+        #else:
+        #    input_ids = b["input_ids"].cuda()
+
+        input_ids = b["input_ids"].cuda()
         labels = b["labels"].long()
+
+        # inference
         with torch.no_grad():
+            # whisper decoding
             results = whisper_model.model.decode(input_ids, woptions)
+
+            # save results
             for r in results:
                 res.append(r.text)
 
@@ -564,7 +650,7 @@ def inference(cfg, cfg_name):
                 ref = wtokenizer.decode(remove_special_token(wtokenizer.encoding, l))
                 refs.append(ref)
 
-    # save the output
+    # save to output
     save_output = Path(save_dir) / '{:s}.inference.txt.pkl'.format(checkpoint)
     with open(save_output, 'wb') as file_ptr:
         pickle.dump([res, refs], file_ptr)
