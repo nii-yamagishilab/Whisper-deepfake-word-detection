@@ -44,11 +44,14 @@ def compute_detection_metrics(refs, preds, old_method=False):
     a = b = c = d = 0
 
     for idx, (ref_text, hyp_text) in enumerate(zip(refs, preds)):
+        # This two lines print the reference and hypothesis
+        # uncomment if you need them for debugging
+        #print("REF: ", ref_text)
+        #print("HYP: ", hyp_text)
+        
         ref_labels = extract_vocoding_labels(ref_text)
         hyp_labels = extract_vocoding_labels(hyp_text)
-        print("REF: ", ref_text)
-        print("HYP: ", hyp_text)
-        
+
         # find the alignment
         ref_text = prepro(' '.join(x[1] for x in ref_labels))
         hyp_text = prepro(' '.join(x[1] for x in hyp_labels))
@@ -205,7 +208,6 @@ def main(input_file):
     print(f"References:  {num_phrases_ref} phrases, {num_words_ref} words")
     print(f"Predictions: {num_phrases_pred} phrases, {num_words_pred} words")
 
-    
 
 if __name__ == "__main__":
     
