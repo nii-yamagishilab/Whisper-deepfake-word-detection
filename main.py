@@ -142,11 +142,12 @@ def process_all_datasets(base_dir, sample_rate, text_max_length=1000, audio_max_
     # Define dataset types and their configurations
     dataset_configs = [
         {
-            "name": "vocoded",
-            "json_dir": base_path / "tedx_fr_random_3k_vocoded_json",
-            "audio_dir": base_path / "tedx_fr_random_3k_vocoded",
+            "name": dataset,
+            "json_dir": base_path / dataset / "vtt_modified",
+            "audio_dir": base_path / dataset / "waveform",
             "extension": ".flac"
-        }
+        } for dataset in 'replacement_fr_hn_sinc_nsf_hifi'.split(',')
+        #for dataset in 'replacement_de_hifigan,replacement_de_hn_sinc_nsf,replacement_de_hn_sinc_nsf_hifi,replacement_de_waveglow,replacement_es_hifigan,replacement_es_hn_sinc_nsf,replacement_es_hn_sinc_nsf_hifi,replacement_es_waveglow,replacement_fr_hifigan,replacement_fr_hn_sinc_nsf,replacement_fr_hn_sinc_nsf_hifi,replacement_fr_waveglow,replacement_it_hifigan,replacement_it_hn_sinc_nsf,replacement_it_hn_sinc_nsf_hifi,replacement_it_waveglow'.split(',')
     ]
     
     # Process each dataset type
@@ -185,7 +186,7 @@ class TedXSpeechDataset(torch.utils.data.Dataset):
         self.tokenizer = tokenizer
         self.nmel = nmel
         
-        # loss cross entropy weights
+        # training target: loss cross entropy weights
         self.w_voc_token = cfg.weight_vocoded_token if hasattr(cfg, 'weight_vocoded_token') else 1.0
         self.w_oth_token = cfg.weight_other_token if hasattr(cfg, 'weight_other_token') else 1.0
         self.ps_tokens = ps_tokens
