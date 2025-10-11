@@ -9,6 +9,7 @@ import json
 import glob
 import random
 import pickle
+import logging
 from types import SimpleNamespace
 
 import torch
@@ -27,6 +28,7 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
+
 import whisper
 from transformers import (
     get_linear_schedule_with_warmup
@@ -34,10 +36,13 @@ from transformers import (
 from transformers import WhisperTokenizer
 import evaluate
 import evaluation
-from utils import rawboost
+import dataio
 
 SEED = 3407
 pl.seed_everything(SEED, workers=True)
+
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+logger = logging.getLogger(__name__)
 checkpoint_name = 'checkpoint'
 lora_cp_name = 'lora.ckpt'
 
@@ -51,216 +56,15 @@ def return_folder_name(cfg_name, model_name, learning_rate):
     return project_dir, log_output_dir, cp_dir, output_dir
 
 
-# Audio loading function
-def load_wave(wave_path, sample_rate: int = 16000) -> torch.Tensor:
-    waveform, sr = torchaudio.load(wave_path, normalize=True)
-    if sample_rate != sr:
-        waveform = at.Resample(sr, sample_rate)(waveform)
-    return waveform
-
-# Function to extract text from JSON structure
-def extract_transcription(data):
-    """Extracts transcription text from JSON structure"""
-    # Check if segments exist and have text content
-    if 'segments' in data and isinstance(data['segments'], list) and len(data['segments']) > 0:
-        # Combine all segment texts (for multi-segment files)
-        return ''.join(segment.get('text', '') for segment in data['segments'])
-    return ''
-
 def remove_special_token(tiktoken_enc, tokens):
     return [x for x in tokens if x not in tiktoken_enc._special_tokens.values()]
 
-# Main dataset processing function for a single dataset type
-def process_dataset_type(
-    json_dir,
-    audio_dir,
-    extension,
-    text_max_length=200,
-    audio_max_sample_length=480000,
-    sample_rate=16000,
-):
-    audio_transcript_pair_list = []
-    # fix the random seed
-    pd_tmp = pd.DataFrame({'json': list(Path(json_dir).rglob("*.json"))}).sample(frac=1, random_state=SEED)
-    json_path_list = pd_tmp['json'].to_list()
-    
-    print(f"\nProcessing {len(json_path_list)} JSON files from {json_dir}")
-    print(f"Using audio extension: {extension}")
-    
-    for json_path in tqdm(json_path_list):
-        # Load JSON content
-        try:
-            with open(json_path, 'r') as f:
-                data = json.load(f)
-        except Exception as e:
-            print(f"Error loading JSON {json_path}: {str(e)}")
-            continue
-        
-        # Extract text from JSON structure
-        text = extract_transcription(data)
-        if not text:
-            print(f"Missing text in {json_path}")
-            continue
-        
-        # Construct audio path
-        rel_path = json_path.relative_to(Path(json_dir))
-        audio_path = Path(audio_dir) / rel_path.with_suffix(extension)
-        
-        # Validate paths
-        if not audio_path.exists():
-            print(f"Missing audio: {audio_path}")
-            continue
-
-        # Load and validate audio
-        try:
-            audio = load_wave(audio_path, sample_rate)[0]
-            audio_length = len(audio)
-            
-            if len(text) > text_max_length:
-                print(f"Skipped (text too long: {len(text)} chars) for {json_path.stem}")
-                continue
-                
-            if audio_length > audio_max_sample_length:
-                print(f"Skipped (audio too long: {audio_length} samples) for {json_path.stem}")
-                continue
-                
-        except Exception as e:
-            print(f"Error loading audio {audio_path}: {str(e)}")
-            continue
-        
-        # Add valid pair
-        audio_transcript_pair_list.append((json_path.stem, str(audio_path), text))
-    
-    print(f"Found {len(audio_transcript_pair_list)} valid pairs")
-    return audio_transcript_pair_list
-
-# Main function to process all datasets
-def process_all_datasets(base_dir, sample_rate, text_max_length=1000, audio_max_length=480000):
-    all_pairs = []
-    base_path = Path(base_dir)
-    
-    # Define dataset types and their configurations
-    dataset_configs = [
-        {
-            "name": dataset,
-            "json_dir": base_path / dataset / "vtt_modified",
-            "audio_dir": base_path / dataset / "waveform",
-            "extension": ".flac"
-        } for dataset in 'replacement_fr_hn_sinc_nsf_hifi'.split(',')
-        #for dataset in 'replacement_de_hifigan,replacement_de_hn_sinc_nsf,replacement_de_hn_sinc_nsf_hifi,replacement_de_waveglow,replacement_es_hifigan,replacement_es_hn_sinc_nsf,replacement_es_hn_sinc_nsf_hifi,replacement_es_waveglow,replacement_fr_hifigan,replacement_fr_hn_sinc_nsf,replacement_fr_hn_sinc_nsf_hifi,replacement_fr_waveglow,replacement_it_hifigan,replacement_it_hn_sinc_nsf,replacement_it_hn_sinc_nsf_hifi,replacement_it_waveglow'.split(',')
-    ]
-    
-    # Process each dataset type
-    for config in dataset_configs:
-        if not config["json_dir"].exists():
-            print(f"\n⚠️ Missing JSON directory: {config['json_dir']}")
-            continue
-        if not config["audio_dir"].exists():
-            print(f"\n⚠️ Missing audio directory: {config['audio_dir']}")
-            continue
-            
-        print(f"\n{'='*40}")
-        print(f"Processing {config['name']} dataset")
-        print(f"JSON directory: {config['json_dir']}")
-        print(f"Audio directory: {config['audio_dir']}")
-        print(f"{'='*40}")
-        
-        pairs = process_dataset_type(
-            json_dir=config["json_dir"],
-            audio_dir=config["audio_dir"],
-            extension=config["extension"],
-            text_max_length=text_max_length,
-            audio_max_sample_length=audio_max_length,
-            sample_rate=sample_rate
-        )
-        all_pairs.extend(pairs)
-    
-    return all_pairs
-
-class TedXSpeechDataset(torch.utils.data.Dataset):
-    def __init__(self, audio_info_list, tokenizer, cfg, nmel, ps_tokens=[], inf_flag=False) -> None:
-        super().__init__()
-
-        self.audio_info_list = audio_info_list
-        self.sample_rate = cfg.sample_rate
-        self.tokenizer = tokenizer
-        self.nmel = nmel
-        
-        # training target: loss cross entropy weights
-        self.w_voc_token = cfg.weight_vocoded_token if hasattr(cfg, 'weight_vocoded_token') else 1.0
-        self.w_oth_token = cfg.weight_other_token if hasattr(cfg, 'weight_other_token') else 1.0
-        self.ps_tokens = ps_tokens
-
-        # trimming space
-        self.trim_led_pad = cfg.trim_leading_pad if hasattr(cfg, 'trim_leading_pad') else 0
-        # use augmentation 
-        self.use_rawboost = cfg.use_rawboost if hasattr(cfg, 'use_rawboost') else False
-        if inf_flag:
-            self.use_rawboost = False
-            #print("rawboost is off during inference")
-        if self.use_rawboost:
-            self.rawboost_config = cfg.rawboost_config
-        else:
-            self.rawboost_config = None
-
-        
-    def __len__(self):
-        return len(self.audio_info_list)
-    
-    def __getitem__(self, id):
-        audio_id, audio_path, text = self.audio_info_list[id]
-
-        # audio
-        audio = load_wave(audio_path, sample_rate=self.sample_rate)
-        audio = whisper.pad_or_trim(audio.flatten())
-
-        if self.use_rawboost and self.rawboost_config is not None:
-            audio = rawboost.process_Rawboost_feature(
-                audio, sr=self.sample_rate,
-                args=self.rawboost_config,
-                algo=self.rawboost_config['algo'])
-            
-        
-        mel = whisper.log_mel_spectrogram(audio, self.nmel)
-
-        # print(text)
-        if self.trim_led_pad == 1:
-            # only remove beginning 220
-            text = text.rstrip().lstrip()
-        elif self.trim_led_pad == 2:
-            # remove every 220 before
-            text = text.replace(' '+evaluation.vocoding_label, evaluation.vocoding_label)
-        elif self.trim_led_pad == 3:
-            text = text.replace(evaluation.vocoding_label+' ', evaluation.vocoding_label)
-        elif self.trim_led_pad == 4:
-            text = text.replace(' '+evaluation.vocoding_label+' ', evaluation.vocoding_label)
-        text = [*self.tokenizer.sot_sequence_including_notimestamps] + self.tokenizer.encode(text)
-
-        # print(text)
-        labels = text[1:] + [self.tokenizer.eot]
-        
-        # weights for cross entropy loss
-        mask = torch.ones_like(torch.tensor(labels)) * self.w_oth_token
-        for ps_token in self.ps_tokens:
-            mask[labels == ps_token] = self.w_voc_token
-        
-        # print(labels)
-        # print("tooooooooooooooooooooooooooooooooooooooo")
-        # print(self.tokenizer.decode(text))
-        return {
-            "input_ids": mel,
-            "labels": labels,
-            "dec_input_ids": text,
-            'mask': mask
-        }
-
 class WhisperDataCollatorWhithPadding:
     def __call__(sefl, features):
-        input_ids, labels, dec_input_ids, masks = [], [], [], []
+        input_ids, labels, dec_input_ids = [], [], []
         for f in features:
             input_ids.append(f["input_ids"])
             labels.append(f["labels"])
-            masks.append(f["mask"])
             dec_input_ids.append(f["dec_input_ids"])
 
         input_ids = torch.concat([input_id[None, :] for input_id in input_ids])
@@ -271,15 +75,12 @@ class WhisperDataCollatorWhithPadding:
         # 50257 is eot token id
         labels = [np.pad(lab, (0, max_label_len - lab_len), 'constant', constant_values=-100) \
                   for lab, lab_len in zip(labels, label_lengths)]
-        masks = [np.pad(mask, (0, max_label_len - lab_len), 'constant', constant_values=0) \
-                for mask, lab_len in zip(masks, label_lengths)]
         
         dec_input_ids = [np.pad(e, (0, max_label_len - e_len), 'constant', constant_values=50257) \
                          for e, e_len in zip(dec_input_ids, dec_input_ids_length)] 
         
         batch = {
             "labels": labels,
-            "masks": masks,
             "dec_input_ids": dec_input_ids
         }
 
@@ -364,7 +165,6 @@ class WhisperModelModule(LightningModule):
         # 
         input_ids = batch["input_ids"]
         labels = batch["labels"].long()
-        masks = batch["masks"]
         dec_input_ids = batch["dec_input_ids"].long()
 
         # encoding
@@ -452,7 +252,7 @@ class WhisperModelModule(LightningModule):
             )
     
     def train_dataloader(self):
-        dataset = TedXSpeechDataset(self.__train_dataset, self.tokenizer,
+        dataset = dataio.TedXSpeechDataset(self.__train_dataset, self.tokenizer,
                                     self.cfg, self.nmel)
         return torch.utils.data.DataLoader(dataset, 
                           batch_size=self.cfg.batch_size, 
@@ -461,7 +261,7 @@ class WhisperModelModule(LightningModule):
                           )
 
     def val_dataloader(self):
-        dataset = TedXSpeechDataset(self.__eval_dataset, self.tokenizer,
+        dataset = dataio.TedXSpeechDataset(self.__eval_dataset, self.tokenizer,
                                     self.cfg, self.nmel)
         return torch.utils.data.DataLoader(dataset, 
                           batch_size=self.cfg.batch_size, 
@@ -469,46 +269,46 @@ class WhisperModelModule(LightningModule):
                           collate_fn=WhisperDataCollatorWhithPadding()
                           )
 
-
-
 def train(cfg, cfg_name):
-        # Dataset setup - point to your base directory
-    data_dir = cfg.data_base_dir
-    print(f"\n{'#'*50}")
-    print(f"Starting dataset processing in: {data_dir}")
-    print(f"{'#'*50}\n")
+    
+    # Dataset setup - point to your base directory
+    try:
+        trn_list = cfg.trn_list
+        val_list = cfg.val_list
+        data_dir = cfg.data_base_dir
+    except AttributeError:
+        logger.error("Missing trn_list, val_list, or data_base_dir in yaml")
+        sys.exit(1)
+
+    logger.info(f"{'#'*50}")
+    logger.info(f"Starting dataset processing in: {data_dir}")
+    logger.info(f"{'#'*50}")
 
     # Process all datasets
-    all_audio_transcript_pairs = process_all_datasets(data_dir, cfg.sample_rate)
-    print(f"\nTOTAL AUDIO-TEXT PAIRS FOUND: {len(all_audio_transcript_pairs)}")
+    train_pairs = dataio.process_dataset(trn_list, data_dir, sample_rate = cfg.sample_rate)
+    dev_pairs = dataio.process_dataset(val_list, data_dir, sample_rate = cfg.sample_rate)
 
-    # Split into train and eval
-    train_num = int(len(all_audio_transcript_pairs) * cfg.train_ratio)
-    train_pairs, eval_pairs = all_audio_transcript_pairs[:train_num], all_audio_transcript_pairs[train_num:]
-
-    print(f"\nTRAIN DATASET SIZE: {len(train_pairs)}")
-    print(f"EVAL DATASET SIZE: {len(eval_pairs)}")
+    logger.info(f"TRAIN DATASET SIZE: {len(train_pairs)}")
+    logger.info(f"DEV DATASET SIZE: {len(dev_pairs)}")
+    
     # Sample output for verification
     if len(train_pairs) > 0:
-        print("\nSample training item:")
-        print(f"ID: {train_pairs[0][0]}")
-        print(f"Audio: {train_pairs[0][1]}")
-        print(f"Text: {train_pairs[0][2][:50]}...")
+        logger.info("Sample training item:")
+        logger.info(f"ID: {train_pairs[0][0]}")
+        logger.info(f"Audio: {train_pairs[0][1]}")
+        logger.info(f"Text: {train_pairs[0][2][:50]}...")
         
-    # (Add your Whisper model and training code below)
 
+    # whisper initialization
     woptions = whisper.DecodingOptions(language=cfg.lang, without_timestamps=True)
     wtokenizer = whisper.tokenizer.get_tokenizer(True, language=cfg.lang, task=woptions.task)
     
     model_name = cfg.model_name
     lang = cfg.lang
-
     project_dir, log_output_dir, cp_dir, _ = return_folder_name(cfg_name, model_name, cfg.learning_rate)
     
     train_name = "whisper_finetune_lr_{:3.0e}".format(cfg.learning_rate)
     train_id = "all_finetune_lr_{:3.0e}".format(cfg.learning_rate)
-
-    # %%
 
     Path(log_output_dir).mkdir(parents=True, exist_ok=True)
     Path(cp_dir).mkdir(parents=True, exist_ok=True)
@@ -527,7 +327,7 @@ def train(cfg, cfg_name):
     checkpoint_callback.CHECKPOINT_EQUALS_CHAR = '-'
 
     callback_list = [checkpoint_callback, LearningRateMonitor(logging_interval="epoch")]
-    model = WhisperModelModule(cfg, model_name, lang, train_pairs, eval_pairs)
+    model = WhisperModelModule(cfg, model_name, lang, train_pairs, dev_pairs)
 
     # operation for lora
     if hasattr(cfg, 'lora') and cfg.lora:
@@ -536,7 +336,6 @@ def train(cfg, cfg_name):
         whisper.set_lora_before_training(model.model)
     
     trainer = Trainer(
-        # precision=16,
         accelerator="gpu",
         devices=[0],
         max_epochs=cfg.num_train_epochs,
@@ -546,7 +345,7 @@ def train(cfg, cfg_name):
     )
 
     trainer.fit(model)
-    print("Training finished")
+    logger.info("Training finished")
 
     if hasattr(cfg, 'lora') and cfg.lora:
         # in fact, no need to save model states, just need to save lora
@@ -557,21 +356,23 @@ def train(cfg, cfg_name):
 
 
 def inference(cfg, cfg_name):
-    # Process all datasets
-    all_audio_transcript_pairs = process_all_datasets(cfg.data_base_dir, cfg.sample_rate)
-    print(f"\nTOTAL AUDIO-TEXT PAIRS FOUND: {len(all_audio_transcript_pairs)}")
 
-    # Split into train and eval
-    train_num = int(len(all_audio_transcript_pairs) * cfg.train_ratio)
-    _, eval_pairs = all_audio_transcript_pairs[:train_num], all_audio_transcript_pairs[train_num:]
+    try:
+        eval_list = cfg.eval_list
+        data_dir = cfg.data_base_dir
+    except AttributeError:
+        logger.error("Missing eval_list or data_base_dir in yaml")
+        sys.exit(1)
+        
+    eval_pairs = dataio.process_dataset(eval_list, data_dir, sample_rate = cfg.sample_rate)
 
-    print(f"EVAL DATASET SIZE: {len(eval_pairs)}")
+    logger.info(f"EVAL DATASET SIZE: {len(eval_pairs)} from {eval_list}")
     
     if len(eval_pairs) > 0:
-        print("\nSample eval item:")
-        print(f"ID: {eval_pairs[0][0]}")
-        print(f"Audio: {eval_pairs[0][1]}")
-        print(f"Text: {eval_pairs[0][2][:50]}...")
+        logger.info("Sample eval item:")
+        logger.info(f"ID: {eval_pairs[0][0]}")
+        logger.info(f"Audio: {eval_pairs[0][1]}")
+        logger.info(f"Text: {eval_pairs[0][2][:50]}...")
 
     woptions = whisper.DecodingOptions(language="fr", without_timestamps=True)
     wtokenizer = whisper.tokenizer.get_tokenizer(True, language="fr", task=woptions.task)
@@ -611,13 +412,13 @@ def inference(cfg, cfg_name):
         checkpoint = sorted(glob.glob("{:s}*.ckpt".format(checkpoint_name), root_dir=cp_dir),
                             key=lambda x: x.split('-')[1])[-1]
         checkpoint_path = "{:s}/{:s}".format(cp_dir, checkpoint)
-        print("Use {:s}".format(checkpoint_path))
+        logger.info("Use {:s}".format(checkpoint_path))
         state_dict = torch.load(checkpoint_path)
         state_dict = state_dict['state_dict']
         whisper_model.load_state_dict(state_dict)
 
     whisper_model.model.eval()
-    dataset = TedXSpeechDataset(eval_pairs, wtokenizer, cfg, whisper_model.nmel, inf_flag=True)
+    dataset = dataio.TedXSpeechDataset(eval_pairs, wtokenizer, cfg, whisper_model.nmel, inf_flag=True)
     loader = torch.utils.data.DataLoader(dataset, batch_size=2, collate_fn=WhisperDataCollatorWhithPadding())
     
     # -----------------------------
@@ -627,12 +428,6 @@ def inference(cfg, cfg_name):
     res = []
 
     for b in tqdm(loader):
-
-        # convert dtype for input and output
-        #if woptions.fp16:
-        #    input_ids = b["input_ids"].half().cuda()
-        #else:
-        #    input_ids = b["input_ids"].cuda()
 
         input_ids = b["input_ids"].cuda()
         labels = b["labels"].long()
@@ -655,7 +450,7 @@ def inference(cfg, cfg_name):
     save_output = Path(save_dir) / '{:s}.inference.txt.pkl'.format(checkpoint)
     with open(save_output, 'wb') as file_ptr:
         pickle.dump([res, refs], file_ptr)
-    print("Inference output saved to {:s}".format(str(save_output)))
+    logger.info("Inference output saved to {:s}".format(str(save_output)))
 
     # evaluate
     evaluation.main(str(save_output))
@@ -664,7 +459,7 @@ if __name__ == "__main__":
     
     # load configuration file
     cfg_name = sys.argv[1]
-    print("User {:s}".format(cfg_name))
+    logger.info("User {:s}".format(cfg_name))
     with open(cfg_name, encoding="utf-8") as fin:
         cfg = SimpleNamespace(**load_hyperpyyaml(fin))
     
