@@ -149,17 +149,7 @@ def prepro(text):
 
 
 
-def main(input_file):
-    if input_file.endswith('pkl'):
-        # pickle file
-        with open(input_file, 'rb') as file_ptr:
-            data = pickle.load(file_ptr)
-
-    assert len(data) == 2, "The input is supposed to be [res, refs]"
-
-    
-
-    res, refs = data[0], data[1]
+def comptue_metrics(res, refs):
     
     # preprocess
     res = [preprocess_vocoding_tags(x) for x in res]
@@ -174,18 +164,33 @@ def main(input_file):
     cer_metrics = evaluate.load("cer")
     cer = cer_metrics.compute(references=[prepro(x) for x in refs_raw], 
                               predictions=[prepro(x) for x in res_raw])
-    print("CER: {:.4f}".format(cer * 100))
 
     # WER
     wer_metrics = evaluate.load("wer")
     wer = wer_metrics.compute(references=[prepro(x) for x in refs_raw], 
                               predictions=[prepro(x) for x in res_raw])
-    print("WER: {:.4f}".format(wer * 100))
-
+    
     # -----------------------------
     # 5. Compute vocoded detection metrics
     # -----------------------------
     metrics = compute_detection_metrics(refs, res)
+    
+    return cer, wer, metrics
+    
+def main(input_file):
+    if input_file.endswith('pkl'):
+        # pickle file
+        with open(input_file, 'rb') as file_ptr:
+            data = pickle.load(file_ptr)
+
+    assert len(data) == 2, "The input is supposed to be [res, refs]"
+
+    res, refs = data[0], data[1]
+    
+    cer, wer, metrics = comptue_metrics(res, refs)
+    
+    print("CER: {:.4f}".format(cer * 100))
+    print("WER: {:.4f}".format(wer * 100))
     print("\nVocoded Word Detection Results:")
     for k, v in metrics.items():
         print(f"{k}: {v}")
@@ -197,7 +202,6 @@ def main(input_file):
         print("-" * 20)
         print("REF:", k)
         print("HYP:", v)
-
 
     # Count in references
     num_phrases_ref, num_words_ref = count_phrases_and_words(refs)

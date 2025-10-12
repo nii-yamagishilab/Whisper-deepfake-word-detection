@@ -20,3 +20,4 @@ finetune_encoder: true
 weight_vocoded_token: 1.0
 weight_other_token: 0.1
 trim_leading_pad: 4
+checkpoint: last

@@ -10,6 +10,8 @@ import glob
 import random
 import pickle
 import logging
+import argparse
+from pathlib import Path
 from types import SimpleNamespace
 
 import torch
@@ -19,7 +21,7 @@ import torchaudio.transforms as at
 
 import numpy as np
 import pandas as pd
-from pathlib import Path
+
 from tqdm import tqdm
 from hyperpyyaml import load_hyperpyyaml
 
@@ -34,9 +36,11 @@ from transformers import (
     get_linear_schedule_with_warmup
 )
 from transformers import WhisperTokenizer
+
 import evaluate
 import evaluation
 import dataio
+from utils import misc
 
 SEED = 3407
 pl.seed_everything(SEED, workers=True)
@@ -382,8 +386,8 @@ def inference(cfg, cfg_name):
 
     project_dir, _, cp_dir, save_dir = return_folder_name(cfg_name, model_name, cfg.learning_rate)
     Path(save_dir).mkdir(parents=True, exist_ok=True)
-    train_name = "whisper_finetune_lr_{:3.0e}".format(cfg.learning_rate)
-    train_id = "all_finetune_lr_{:3.0e}".format(cfg.learning_rate)
+    #train_name = "whisper_finetune_lr_{:3.0e}".format(cfg.learning_rate)
+    #train_id = "all_finetune_lr_{:3.0e}".format(cfg.learning_rate)
 
     # -----------------------------
     # 2. Load checkpoint and prepare model
@@ -392,7 +396,7 @@ def inference(cfg, cfg_name):
     whisper_model = WhisperModelModule(cfg, model_name, lang, inference_flag=True)
     
     if hasattr(cfg, 'lora') and cfg.lora:
-        woptions = whisper.DecodingOptions(language="fr", without_timestamps=True, fp16=True)
+        woptions = whisper.DecodingOptions(language=lang, without_timestamps=True, fp16=True)
         
         # if lora is on, no need to load checkpoint-epoch with whisper
         #whisper_model.load_state_dict(state_dict, strict=False)
@@ -405,13 +409,24 @@ def inference(cfg, cfg_name):
         checkpoint = lora_cp_name
         
     else:
-        woptions = whisper.DecodingOptions(language="fr", without_timestamps=True)
+        woptions = whisper.DecodingOptions(language=lang, without_timestamps=True)
 
         # without lora
-        # sorted by epoch
-        checkpoint = sorted(glob.glob("{:s}*.ckpt".format(checkpoint_name), root_dir=cp_dir),
-                            key=lambda x: x.split('-')[1])[-1]
-        checkpoint_path = "{:s}/{:s}".format(cp_dir, checkpoint)
+        if hasattr(cfg, 'checkpoint') and os.path.isfile(cfg.checkpoint):
+            # use specified checkpoint
+            checkpoint_path = cfg.checkpoint
+            checkpoint = os.path.basename(checkpoint_path)
+        elif hasattr(cfg, 'checkpoint') and cfg.checkpoint == 'loss':
+            # choose based on val loss
+            checkpoint = sorted(glob.glob("{:s}*.ckpt".format(checkpoint_name), root_dir=cp_dir),
+                                key=lambda x: x.split('-')[4])[0]
+            checkpoint_path = "{:s}/{:s}".format(cp_dir, checkpoint)
+        else:
+            # choose last epoch
+            checkpoint = sorted(glob.glob("{:s}*.ckpt".format(checkpoint_name), root_dir=cp_dir),
+                                key=lambda x: x.split('-')[2])[-1]
+            checkpoint_path = "{:s}/{:s}".format(cp_dir, checkpoint)
+            
         logger.info("Use {:s}".format(checkpoint_path))
         state_dict = torch.load(checkpoint_path)
         state_dict = state_dict['state_dict']
@@ -460,8 +475,16 @@ if __name__ == "__main__":
     # load configuration file
     cfg_name = sys.argv[1]
     logger.info("User {:s}".format(cfg_name))
+
+    # parse the command line arguments
+    parser = argparse.ArgumentParser()
+    _, overrides = parser.parse_known_args(sys.argv[3:])
+    overrides = misc.convert_to_yaml(overrides)
+    
+    # parse the config
+    
     with open(cfg_name, encoding="utf-8") as fin:
-        cfg = SimpleNamespace(**load_hyperpyyaml(fin))
+        cfg = SimpleNamespace(**load_hyperpyyaml(fin, overrides))
     
     if sys.argv[2] == 'train':
         train(cfg, cfg_name.replace('/', '_'))

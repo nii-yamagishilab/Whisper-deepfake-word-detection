@@ -1,4 +1,8 @@
-data_base_dir: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/partial_spoof_to_zip/tedx_test
+data_base_dir: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data
+trn_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/replacement_fr_hn_sinc_nsf_hifi_trn.csv,/gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/replacement_fr_hn_sinc_nsf_hifi_val.csv
+val_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/replacement_fr_hn_sinc_nsf_hifi_eval.csv
+eval_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/replacement_fr_hn_sinc_nsf_hifi_eval.csv
+#data_base_dir: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/partial_spoof_to_zip/tedx_test
 model_name: large
 lang: fr
 learning_rate: 0.00001
