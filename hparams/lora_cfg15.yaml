@@ -1,4 +1,5 @@
 data_base_dir: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/partial_spoof_to_zip/tedx_test
+eval_set_name: tedx
 model_name: large
 lang: fr
 learning_rate: 0.001

@@ -4,6 +4,7 @@ trn_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/trn.
 val_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/val.csv
 eval_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/replacement_fr_hn_sinc_nsf_hifi_eval.csv
 # eval.csv
+eval_set_name: tedx
 model_name: large
 lang: fr
 learning_rate: 0.00001

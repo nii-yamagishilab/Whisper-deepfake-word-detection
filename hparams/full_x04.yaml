@@ -3,6 +3,7 @@ data_base_dir: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data
 trn_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/trn.csv
 val_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/val.csv
 eval_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/eval.csv
+eval_set_name: tedx
 model_name: large
 # large is a multi-lingual, just set fr for convenience
 lang: fr

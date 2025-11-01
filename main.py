@@ -367,9 +367,11 @@ def inference(cfg, cfg_name):
     except AttributeError:
         logger.error("Missing eval_list or data_base_dir in yaml")
         sys.exit(1)
-        
+
+    eval_set_name = cfg.eval_set_name if hasattr(cfg, 'eval_set_name') else ''        
     eval_pairs = dataio.process_dataset(eval_list, data_dir, sample_rate = cfg.sample_rate)
 
+    
     logger.info(f"EVAL DATASET SIZE: {len(eval_pairs)} from {eval_list}")
     
     if len(eval_pairs) > 0:
@@ -462,7 +464,7 @@ def inference(cfg, cfg_name):
                 refs.append(ref)
 
     # save to output
-    save_output = Path(save_dir) / '{:s}.inference.txt.pkl'.format(checkpoint)
+    save_output = Path(save_dir) / '{:s}.inference.{:s}.txt.pkl'.format(checkpoint, eval_set_name)
     with open(save_output, 'wb') as file_ptr:
         pickle.dump([res, refs], file_ptr)
     logger.info("Inference output saved to {:s}".format(str(save_output)))

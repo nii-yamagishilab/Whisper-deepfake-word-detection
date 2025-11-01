@@ -83,17 +83,10 @@ def modify_vocoded_tag(text, pad_mode):
 ###
 # dataset loader
 ###
-def replace_json_dir_to_wav(name):
-    """default function to replace path of json to wave
-    """
-    # |- vtt_modified: directory of json
-    # |- waveform: directory of waveform
-    return name.replace('vtt_modified', 'waveform')
     
-def process_dataset(filelist_path, base_dir, wav_extension = '.flac',
-                    replace_json_wav_func = replace_json_dir_to_wav,
-                    text_max_length=1000,
-                    audio_max_sample_length=480000, sample_rate=16000):
+def process_dataset(
+        filelist_path, base_dir,
+        text_max_length=1000, audio_max_sample_length=480000, sample_rate=16000):
     """
     input: filelist_path, str, path to file list (relative path to json)
     input: base_dir, str, path to base of data diretory
@@ -102,21 +95,21 @@ def process_dataset(filelist_path, base_dir, wav_extension = '.flac',
     """
     
     audio_transcript_pair_list = []
-
     
     # in case the filelist_path is a string separated by ,
-    json_path_list = []
+    #json_path_list = []
     for filelist_path_ in filelist_path.split(','):
-        pd_tmp = pd.read_csv(filelist_path_, names=['json'])
-        json_path_list += pd_tmp['json'].to_list()
+        pd_tmp = pd.read_csv(filelist_path_, names=['json', 'audio'])
+        #json_path_list += pd_tmp['json'].to_list()
 
-    logger.info(f"Processing {len(json_path_list)} JSON files")
-    logger.info(f"Using audio extension: {wav_extension}")
+    logger.info(f"Processing {pd_tmp.shape[0]} JSON files")
     
-    for json_relative in tqdm(json_path_list):
-
+    for index in tqdm(range(pd_tmp.shape[0])):
+        
+        row = pd_tmp.iloc[index]
+        
         # Load JSON content
-        json_path = Path(base_dir) / json_relative
+        json_path = Path(base_dir) / row['json']
         try:
             text = load_json(json_path)
         except Exception as e:
@@ -133,14 +126,12 @@ def process_dataset(filelist_path, base_dir, wav_extension = '.flac',
 
         
         # load audio
-        audio_path = (Path(base_dir) / replace_json_wav_func(json_relative)).with_suffix(wav_extension)
+        audio_path = Path(base_dir) / row['audio']
         if not audio_path.exists():
             logger.warning(f"Missing audio: {audio_path}")
             continue
         
         try:
-            #audio = load_wave(audio_path, sample_rate)[0]
-            #audio_length = len(audio)
             audio_length = torchaudio.info(audio_path).num_frames
             
         except Exception as e:
@@ -156,8 +147,7 @@ def process_dataset(filelist_path, base_dir, wav_extension = '.flac',
     
     logger.info(f"Found {len(audio_transcript_pair_list)} valid pairs")
     return audio_transcript_pair_list
-
-
+        
 ####
 # dataset definition
 ####
