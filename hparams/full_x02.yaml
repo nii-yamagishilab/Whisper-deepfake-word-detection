@@ -1,8 +1,8 @@
 # based on loss_cfg12.yaml
 data_base_dir: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data
-trn_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/trn.csv
-val_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/val.csv
-eval_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/eval.csv
+trn_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/trn_new.csv
+val_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/val_new.csv
+eval_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols/eval_new.csv
 eval_set_name: tedx
 model_name: large
 # large is a multi-lingual, just set fr for convenience
@@ -21,3 +21,4 @@ finetune_encoder: true
 weight_vocoded_token: 1.0
 weight_other_token: 1.0
 trim_leading_pad: 4
+checkpoint: dummy

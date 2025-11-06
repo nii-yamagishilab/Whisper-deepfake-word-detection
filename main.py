@@ -414,7 +414,7 @@ def inference(cfg, cfg_name):
         woptions = whisper.DecodingOptions(language=lang, without_timestamps=True)
 
         # without lora
-        if hasattr(cfg, 'checkpoint') and os.path.isfile(cfg.checkpoint):
+        if hasattr(cfg, 'checkpoint') and cfg.checkpoint != None and os.path.isfile(cfg.checkpoint):
             # use specified checkpoint
             checkpoint_path = cfg.checkpoint
             checkpoint = os.path.basename(checkpoint_path)
