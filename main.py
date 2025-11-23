@@ -348,7 +348,15 @@ def train(cfg, cfg_name):
         callbacks=callback_list
     )
 
-    trainer.fit(model)
+
+    # find last checkpoint
+    ckpts = glob.glob(os.path.join(cp_dir, "*.ckpt"))
+    if len(ckpts):
+        latest = max(ckpts, key=os.path.getmtime)
+        trainer.fit(model, ckpt_path=latest)
+    else:
+        trainer.fit(model)
+        
     logger.info("Training finished")
 
     if hasattr(cfg, 'lora') and cfg.lora:

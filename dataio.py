@@ -98,10 +98,12 @@ def process_dataset(
     
     # in case the filelist_path is a string separated by ,
     #json_path_list = []
+    pd_tmp = []
     for filelist_path_ in filelist_path.split(','):
-        pd_tmp = pd.read_csv(filelist_path_, names=['json', 'audio'])
+        pd_tmp.append(pd.read_csv(filelist_path_, names=['json', 'audio']))
         #json_path_list += pd_tmp['json'].to_list()
-
+    pd_tmp = pd.concat(pd_tmp, axis=0)
+        
     logger.info(f"Processing {pd_tmp.shape[0]} JSON files")
     
     for index in tqdm(range(pd_tmp.shape[0])):
