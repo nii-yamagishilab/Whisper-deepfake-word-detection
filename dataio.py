@@ -24,7 +24,7 @@ import torchaudio
 import torchaudio.transforms as at
 import whisper
 
-from evaluation import vocoding_label
+from evaluation import vocoding_label, vocoding_end_label
 
 default_vocoded_tag = ''
 logger = logging.getLogger(__name__)
@@ -60,25 +60,46 @@ def load_json(json_path):
     text = extract_transcription(data)
     return text
 
-
 # Functions to process text transcription
-def modify_vocoded_tag(text, pad_mode):
-    
-    # print(text)
+def modify_vocoded_tag(text, pad_mode): 
+    text_ = []
+    temp = text.split()
+    #print(temp)
+    idx = 0
+    while idx < len(temp):
+        #print(temp[idx])
+        if temp[idx] == vocoding_label:
+            text_.append(temp[idx])
+            idx += 1
+            text_.append(temp[idx])
+            text_.append(vocoding_end_label)
+        else:
+            text_.append(temp[idx])
+        
+        idx += 1
+
+    text = ' '.join(text_)
+ 
     if pad_mode == 1:
-        # only remove space at beginning 
+        # only remove space at beginning
         text = text.rstrip().lstrip()
     elif pad_mode == 2:
         # remove every space before vocoded tag
         text = text.replace(' '+vocoding_label, vocoding_label)
+        text = text.replace(vocoding_end_label+' ', vocoding_end_label)
     elif pad_mode == 3:
-        # remove space after vocoded tag
+        # remove space after vocoded tag 
         text = text.replace(vocoding_label+' ', vocoding_label)
+        text = text.replace(' '+vocoding_end_label, vocoding_end_label)
     elif pad_mode == 4:
         # remove space around vocoded tag
-        text = text.replace(' '+vocoding_label+' ', vocoding_label)
-        
+        text = text.replace(' '+vocoding_label, vocoding_label)
+        text = text.replace(vocoding_label+' ', vocoding_label)
+        #text = text.replace(' '+vocoding_label+' ', vocoding_label)
+        text = text.replace(' '+vocoding_end_label, vocoding_end_label)
+        text = text.replace(vocoding_end_label+' ', vocoding_end_label)
     return text
+
 
 ###
 # dataset loader

@@ -444,7 +444,7 @@ def inference(cfg, cfg_name):
 
     whisper_model.model.eval()
     dataset = dataio.TedXSpeechDataset(eval_pairs, wtokenizer, cfg, whisper_model.nmel, inf_flag=True)
-    loader = torch.utils.data.DataLoader(dataset, batch_size=2, collate_fn=WhisperDataCollatorWhithPadding())
+    loader = torch.utils.data.DataLoader(dataset, batch_size=1, collate_fn=WhisperDataCollatorWhithPadding())
     
     # -----------------------------
     # 3. Run inference
@@ -460,7 +460,9 @@ def inference(cfg, cfg_name):
         # inference
         with torch.no_grad():
             # whisper decoding
-            results = whisper_model.model.decode(input_ids, woptions)
+            _, probs = whisper_model.model.detect_language(input_ids)
+            lang = max(probs[0], key=probs[0].get)            
+            results = whisper_model.model.decode(input_ids, woptions, language=lang)
 
             # save results
             for r in results:

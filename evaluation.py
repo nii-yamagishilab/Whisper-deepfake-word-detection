@@ -9,16 +9,19 @@ import evaluate
 import jiwer
 
 vocoding_label = "!!!!!!"
+vocoding_end_label = '~~~'
 vocoding_pattern = re.compile(r'\s*!{6,}\s*')
+vocoding_end_pattern = re.compile(r'\s*~{3,}\s*')
 
 # -----------------------------
 # 1. Helper functions for vocoding evaluation
 # -----------------------------
 def preprocess_vocoding_tags(text: str):
-    return vocoding_pattern.sub(' ' + vocoding_label + ' ', text)
+    temp = vocoding_pattern.sub(' ' + vocoding_label + ' ', text)
+    return vocoding_end_pattern.sub(' ' + vocoding_end_label + ' ', temp)
 
 def remove_vocoding_labels(text: str):
-    return text.replace(vocoding_label + ' ', '')
+    return text.replace(vocoding_label + ' ', '').replace(vocoding_end_label + ' ', '')
     
 def extract_vocoding_labels(text: str):
     """
@@ -28,16 +31,15 @@ def extract_vocoding_labels(text: str):
     words = text.strip().split()
     labels = []
     i = 0
+    flag = 'bonafide'
     while i < len(words):
         if words[i] == vocoding_label:
-            if i + 1 < len(words):
-                labels.append(("spoof", words[i + 1]))
-                i += 2
-            else:
-                i += 1
+            flag = 'spoof'
+        elif words[i] == vocoding_end_label:
+            flag = 'bonafide'
         else:
-            labels.append(("bonafide", words[i]))
-            i += 1
+            labels.append((flag, words[i]))
+        i += 1
     return labels
 
 def compute_detection_metrics(refs, preds, old_method=False):
@@ -56,7 +58,9 @@ def compute_detection_metrics(refs, preds, old_method=False):
         ref_text = prepro(' '.join(x[1] for x in ref_labels))
         hyp_text = prepro(' '.join(x[1] for x in hyp_labels))
         align = jiwer.process_words([ref_text], [hyp_text]).alignments[0]
-        
+        #print(ref_text)
+        #print(hyp_text)
+        #print(align)
         if old_method:
             min_len = min(len(ref_labels), len(hyp_labels))
 
@@ -150,7 +154,7 @@ def prepro(text):
 
 
 def comptue_metrics(res, refs):
-    
+    print(__file__)
     # preprocess
     res = [preprocess_vocoding_tags(x) for x in res]
     refs = [preprocess_vocoding_tags(x) for x in refs]
