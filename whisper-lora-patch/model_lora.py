@@ -98,24 +98,26 @@ class MultiHeadAttention(nn.Module):
             lora_alpha=lora_conf.lora_alpha,
             lora_dropout=lora_conf.lora_dropout,
             merge_weights=merge_weights)
-        self.key = lora.Linear(
-            n_state, n_state, bias=False,
-            r=lora_conf.lora_r,
-            lora_alpha=lora_conf.lora_alpha,
-            lora_dropout=lora_conf.lora_dropout,
-            merge_weights=merge_weights)
+        self.key = Linear(n_state, n_state, bias=False)
+        #self.key = lora.Linear(
+        #    n_state, n_state, bias=False,
+        #    r=lora_conf.lora_r,
+        #    lora_alpha=lora_conf.lora_alpha,
+        #    lora_dropout=lora_conf.lora_dropout,
+        #    merge_weights=merge_weights)
         self.value = lora.Linear(
             n_state, n_state,
             r=lora_conf.lora_r,
             lora_alpha=lora_conf.lora_alpha,
             lora_dropout=lora_conf.lora_dropout,
             merge_weights=merge_weights)
-        self.out = lora.Linear(
-            n_state, n_state,
-            r=lora_conf.lora_r,
-            lora_alpha=lora_conf.lora_alpha,
-            lora_dropout=lora_conf.lora_dropout,
-            merge_weights=merge_weights)
+        #self.out = lora.Linear(
+        #    n_state, n_state,
+        #    r=lora_conf.lora_r,
+        #    lora_alpha=lora_conf.lora_alpha,
+        #    lora_dropout=lora_conf.lora_dropout,
+        #    merge_weights=merge_weights)
+        self.out = Linear(n_state, n_state)        
         
     def forward(
         self,
@@ -206,19 +208,22 @@ class AudioEncoder(nn.Module):
                  merge_weights: bool):
         super().__init__()
 
-        #
-        lora_conf_conv1 = lora_confs[0]
-        self.conv1 = lora.Conv1d(n_mels, n_state,kernel_size=3, padding=1,
-                                 r = lora_conf_conv1.lora_r, lora_alpha = lora_conf_conv1.lora_alpha,
-                                 lora_dropout = lora_conf_conv1.lora_dropout,
-                                 merge_weights = merge_weights)
+        #       
+        #lora_conf_conv1 = lora_confs[0]
+        #self.conv1 = lora.Conv1d(n_mels, n_state,kernel_size=3, padding=1,
+        #                         r = lora_conf_conv1.lora_r, lora_alpha = lora_conf_conv1.lora_alpha,
+        #                         lora_dropout = lora_conf_conv1.lora_dropout,
+        #                         merge_weights = merge_weights)
 
         #
-        lora_conf_conv2 = lora_confs[1]
-        self.conv2 = lora.Conv1d(n_state, n_state, kernel_size=3, stride=2, padding=1,
-                                 r = lora_conf_conv2.lora_r, lora_alpha = lora_conf_conv2.lora_alpha,
-                                 lora_dropout = lora_conf_conv2.lora_dropout,
-                                 merge_weights = merge_weights)
+        #lora_conf_conv2 = lora_confs[1]
+        #self.conv2 = lora.Conv1d(n_state, n_state, kernel_size=3, stride=2, padding=1,
+        #                         r = lora_conf_conv2.lora_r, lora_alpha = lora_conf_conv2.lora_alpha,
+        #                         lora_dropout = lora_conf_conv2.lora_dropout,
+        #                         merge_weights = merge_weights)
+
+        self.conv1 = Conv1d(n_mels, n_state, kernel_size=3, padding=1)
+        self.conv2 = Conv1d(n_state, n_state, kernel_size=3, stride=2, padding=1)
         
         self.register_buffer("positional_embedding", sinusoids(n_ctx, n_state))
         

@@ -1,0 +1,79 @@
+{
+  "segments": [
+    {
+      "start": 0.81,
+      "end": 3.056,
+      "text": " Versucht !!!!!! mittels !!!!!! stabilen !!!!!! Vollkurven.",
+      "words": [
+        {
+          "word": "Versucht",
+          "start": 0.81,
+          "end": 1.559,
+          "score": 0.754
+        },
+        {
+          "word": "mittels",
+          "start": 1.579,
+          "end": 1.862,
+          "score": 0.932
+        },
+        {
+          "word": "stabilen",
+          "start": 1.903,
+          "end": 2.469,
+          "score": 0.922
+        },
+        {
+          "word": "Vollkurven.",
+          "start": 2.51,
+          "end": 3.056,
+          "score": 0.89
+        }
+      ]
+    }
+  ],
+  "word_segments": [
+    {
+      "word": "Versucht",
+      "start": 0.81,
+      "end": 1.559,
+      "score": 0.754
+    },
+    {
+      "word": "mittels",
+      "start": 1.579,
+      "end": 1.862,
+      "score": 0.932
+    },
+    {
+      "word": "stabilen",
+      "start": 1.903,
+      "end": 2.469,
+      "score": 0.922
+    },
+    {
+      "word": "Vollkurven.",
+      "start": 2.51,
+      "end": 3.056,
+      "score": 0.89
+    }
+  ],
+  "language": "de",
+  "replacements": [
+    {
+      "word": "mittels",
+      "replacement_start": 1.579,
+      "replacement_end": 1.862
+    },
+    {
+      "word": "stabilen",
+      "replacement_start": 1.903,
+      "replacement_end": 2.469
+    },
+    {
+      "word": "Vollkurven.",
+      "replacement_start": 2.51,
+      "replacement_end": 3.056
+    }
+  ]
+}

@@ -108,9 +108,9 @@ class WhisperModelModule(LightningModule):
         self.options = whisper.DecodingOptions(language=lang, without_timestamps=True)
 
         if hasattr(cfg, 'lora') and cfg.lora:
-            lora_r = cfg.lora_r if hasattr(cfg, 'lora_r') else 8
-            lora_alpha = cfg.lora_alpha if hasattr(cfg, 'lora_alpha') else 8
-            lora_dropout = cfg.lora_dropout if hasattr(cfg, 'lora_dropout') else 0.0
+            lora_r = cfg.lora_r if hasattr(cfg, 'lora_r') else 32
+            lora_alpha = cfg.lora_alpha if hasattr(cfg, 'lora_alpha') else 64
+            lora_dropout = cfg.lora_dropout if hasattr(cfg, 'lora_dropout') else 0.05
 
             # inference, we merge the LoRA weights back to the original weights
             self.model = whisper.load_lora_model(
@@ -439,7 +439,8 @@ def inference(cfg, cfg_name):
             
         logger.info("Use {:s}".format(checkpoint_path))
         state_dict = torch.load(checkpoint_path)
-        state_dict = state_dict['state_dict']
+        if 'state_dict' in state_dict:
+            state_dict = state_dict['state_dict']
         whisper_model.load_state_dict(state_dict)
 
     whisper_model.model.eval()
