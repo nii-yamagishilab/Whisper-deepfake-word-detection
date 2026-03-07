@@ -1,4 +1,8 @@
 
+[![arXiv](https://img.shields.io/badge/arXiv-2507.08530-b31b1b.svg)](https://arxiv.org/abs/2602.22658)
+[![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
+
+
 This is the repository for paper [Deepfake Word Detection by Next-token Prediction using Fine-tuned Whisper](https://arxiv.org/abs/2602.22658)
 
 ```bibtex
@@ -65,7 +69,7 @@ cd whisper-tuned
 bash scripts/tiny.sh
 ```
 
-## What the command does
+## What does the command do
 
 This code will use the tiny dataset (one sample, repeated 16 times) to demonstrate the training and inference process.
 
@@ -157,7 +161,7 @@ The above log shows the CER/WER and FRR/FNR on the tiny data set.
 The last part shows the ground-truth (REF) and model output (HYP).
 
 
-# To use your own data
+# How to use your own data
 
 1. Follow `data/tiny` and prepare the json and wav files
 2. Prepare the YAML file like `hparms/tiny.yaml`
@@ -169,5 +173,11 @@ Additional notes:
 * `*/hparams/exp*.yaml` are the configuration files actually used in the paper.
 * `*/scripts/qsub.sh` are the scripts to run training and inference on multiple test sets
 
+# License
+
+See [LICENSE](./LICENSE)
+
 # Acknowledgement
 This work is partially supported by JST, PRESTO Grant (JPMJPR23P9), and K Program Grant (JPMJKP24C2), Japan. It is partially done on TSUBAME4.0, Institute of Science Tokyo.
+
+Contact: wangxin nii ac jp
