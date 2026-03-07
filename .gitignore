@@ -2,13 +2,15 @@
 __pycache__/
 *.py[codz]
 *$py.class
+wer/
+cer/
 
 # C extensions
 *.so
-qsub*
 
 # Distribution / packaging
 .Python
+whisper/
 project/
 project*/
 build/

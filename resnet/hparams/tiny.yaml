@@ -1,0 +1,20 @@
+#
+data_base_dir: PATH_TO_DATA_TINY
+trn_list: !ref <data_base_dir>/tiny.csv
+val_list: !ref <data_base_dir>/tiny.csv
+eval_list: !ref <data_base_dir>/tiny.csv
+eval_set_name: tiny
+train_ratio: 0.8
+text_max_length: 1000
+learning_rate: 0.0001
+weight_decay: 0.01
+adam_epsilon: 1e-8
+warmup_steps: 2
+batch_size: 16
+num_worker: 2
+num_train_epochs: 15
+gradient_accumulation_steps: 1
+sample_rate: 16000
+train_name: resnet152
+train_id: '0'
+checkpoint: loss
