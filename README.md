@@ -14,7 +14,7 @@ Hoan My Tran, Xin Wang, Wanying Ge, Xuechen Liu, Junichi Yamagishi
       primaryClass={eess.AS},
       url={https://arxiv.org/abs/2602.22658}, 
 }
-``
+```
 
 # Dependency
 
@@ -33,14 +33,40 @@ git clone https://huggingface.co/spaces/evaluate-metric/wer
 git clone https://huggingface.co/spaces/evaluate-metric/cer
 ```
 
-TODO: dependency installation for LoRA. This is not used for further experiments
+- [ ] dependency installation for LoRA. This is not used for further experiments
+
+# Folder structure
+
+```bash
+.
+├── data
+│   ├── tiny: a toy data set for demonstration
+│
+├── whisper-tuned: folder for fine-tuning whisper
+│   ├── hparams: configuration YAML
+│   ├── scripts: wrapper bash script 
+│   ├── project: (to be produced after training) project folder
+│   ├── utils: utility tools
+│   ├── main.py: main function (model def, training loop)
+│   ├── evaluation.py: tool to compute FPR/FRR and WER/CER
+│   └── dataio.py: dataset definition, pre-processing (add token)
+├── resnet: folder for resnet
+├── README_YAML: document on the YAML file
+├── requirements.yaml: python dependency
+└── README.md
+```
+
 
 # Usage (toy example)
 
+## Command 
 ```bash
 cd whisper-tuned
 bash scripts/tiny.sh
 ```
+
+## What the command does
+
 This code will use the tiny dataset (one sample, repeated 16 times) to demonstrate the training and inference process.
 
 1. Load `hparams/tiny.yaml`, which specifies
@@ -72,6 +98,8 @@ This code will use the tiny dataset (one sample, repeated 16 times) to demonstra
 
 
 To compute WER/CER and other metrics `python evaluation.py <path_to_pkl>`, where `<path_to_pkl>` is the path to the pkl file saved from inference.
+
+## Sample log 
 
 The log looks like
 
