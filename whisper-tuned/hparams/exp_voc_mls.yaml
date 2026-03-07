@@ -1,8 +1,8 @@
 # 
-data_base_dir: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/other_testsets/mls_coded
-trn_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/other_testsets/mls_coded/csv/v1/trn.csv
-val_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/other_testsets/mls_coded/csv/v1/val.csv
-eval_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/other_testsets/mls_coded/csv/v1/eval.csv
+data_base_dir: ${WORK}/data/other_testsets/mls_coded
+trn_list: ${WORK}/data/other_testsets/mls_coded/csv/v1/trn.csv
+val_list: ${WORK}/data/other_testsets/mls_coded/csv/v1/val.csv
+eval_list: ${WORK}/data/other_testsets/mls_coded/csv/v1/eval.csv
 eval_set_name: mls_coded
 model_name: large
 # large is a multi-lingual, just set fr for convenience

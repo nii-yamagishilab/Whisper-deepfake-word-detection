@@ -154,7 +154,7 @@ def prepro(text):
 
 
 def comptue_metrics(res, refs):
-    print(__file__)
+    #print(__file__)
     # preprocess
     res = [preprocess_vocoding_tags(x) for x in res]
     refs = [preprocess_vocoding_tags(x) for x in refs]

@@ -1,8 +1,8 @@
-#data_base_dir: /home/tran/dev/partial_spoof/tedx_test
-data_base_dir: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data
-trn_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols_v5/trn.csv
-val_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols_v5/val.csv
-eval_list: /gs/bs/tgh-25IAC/ud03523/WORK/project-partialspoof/data/protocols_merged/eval_new.csv
+#
+data_base_dir: ${WORK}/data
+trn_list: ${WORK}/data/protocols_v5/trn.csv
+val_list: ${WORK}/data/protocols_v5/val.csv
+eval_list: ${WORK}/data/protocols_merged/eval_new.csv
 eval_set_name: tedx
 train_ratio: 0.8
 text_max_length: 1000
