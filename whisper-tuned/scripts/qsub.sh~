@@ -1,0 +1,35 @@
+#!/bin/sh
+#$ -cwd
+#$ -l gpu_1=1
+#$ -l h_rt=24:00:00
+
+## qsub ${gid} qsub.sh hparams/yaml loss
+
+ID=`pwd | xargs -I{} basename {}`
+
+expdir=$PWD
+PRJDIR=PATH_TO_PROJECT
+
+source ~/.bashrc
+conda activate partialwhispeer
+
+cd ${expdir}
+
+# training
+python main.py $1 train
+
+# inference
+com="python main.py $1 inference --checkpoint $2 \
+	    --eval_list $PRJDIR/data/other_testsets/partialedit/eval_subset3000.lst \
+	    --eval_set_name partialedit_sub \
+	    --data_base_dir $PRJDIR/data/other_testsets/partialedit"
+echo "${com}"
+eval "${com}"
+
+com="python main.py $1 inference --checkpoint $2 \
+	    --eval_list $PRJDIR/data/protocols_v3/eval.csv \
+	    --eval_set_name tedx_v3 \
+	    --data_base_dir $PRJDIR/data"
+echo "${com}"
+eval "${com}"
+
