@@ -1,8 +1,8 @@
 # 
-data_base_dir: ${WORK}/data
-trn_list: ${WORK}/data/protocols_v5/trn.csv
-val_list: ${WORK}/data/protocols_v5/val.csv
-eval_list: ${WORK}/data/protocols_merged/eval_new.csv
+data_base_dir: ${WORK}/data/other_testsets/llamapartialspoof
+trn_list: ${WORK}/data/other_testsets/llamapartialspoof/trn_60k.csv
+val_list: ${WORK}/data/other_testsets/llamapartialspoof/val_4k.csv
+eval_list: ${WORK}/data/other_testsets/llamapartialspoof/../../protocols_merged/eval_new.csv
 eval_set_name: tedx
 model_name: large
 # large is a multi-lingual, just set fr for convenience
@@ -13,7 +13,7 @@ adam_epsilon: 1e-8
 warmup_steps: 2
 batch_size: 8
 num_worker: 4
-num_train_epochs: 10
+num_train_epochs: 5
 gradient_accumulation_steps: 1
 # working sampling rate of the model
 sample_rate: 16000

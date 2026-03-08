@@ -160,18 +160,21 @@ The above log shows the CER/WER and FRR/FNR on the tiny data set.
 
 The last part shows the ground-truth (REF) and model output (HYP).
 
+# Notes:
 
-# How to use your own data
+## YAML and scripts
+
+* `*/hparams/exp*.yaml` are the configuration files actually used in the paper.
+* `*/scripts/qsub.sh` are the scripts to run training and inference on multiple test sets.
+* to use pre-trained Whisper, run the inference command using `whisper-tuned/utils/main_pretrained_whisper.py`. The commandline is the same as inference using `main.py`.
+
+## How to use your own data
 
 1. Follow `data/tiny` and prepare the json and wav files
 2. Prepare the YAML file like `hparms/tiny.yaml`
 3. Training `python main.py hparams/<yaml> train`
 4. Inference & evaluation `python main.py hparams/<yaml> inference`. The best checkpoint (w.r.t error on validation set) will be loaded automatically 
 
-
-Additional notes:
-* `*/hparams/exp*.yaml` are the configuration files actually used in the paper.
-* `*/scripts/qsub.sh` are the scripts to run training and inference on multiple test sets
 
 # License
 
