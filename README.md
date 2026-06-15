@@ -7,17 +7,18 @@ This is the repository for paper [Deepfake Word Detection by Next-token Predicti
 
 ```bibtex
 Deepfake Word Detection by Next-token Prediction using Fine-tuned Whisper
-Hoan My Tran, Xin Wang, Wanying Ge, Xuechen Liu, Junichi Yamagishi
+Hoan My Tran, Xin Wang, Wanying Ge, Xuechen Liu, Junichi Yamagishi, Interspeech 2026 (accepted)
 
-@misc{tran2026deepfakeworddetectionnexttoken,
-      title={Deepfake Word Detection by Next-token Prediction using Fine-tuned Whisper}, 
-      author={Hoan My Tran and Xin Wang and Wanying Ge and Xuechen Liu and Junichi Yamagishi},
-      year={2026},
-      eprint={2602.22658},
-      archivePrefix={arXiv},
-      primaryClass={eess.AS},
-      url={https://arxiv.org/abs/2602.22658}, 
+
+@inproceedings{tranDeepfake2026,
+	title = {Deepfake {Word} {Detection} by {Next}-token {Prediction} using {Fine}-tuned {Whisper}},
+	url = {https://arxiv.org/abs/2602.22658},
+	booktitle = {Proc. {Interspeech}},
+	author = {Tran, Hoan My and Wang, Xin and Ge, Wanying and Liu, Xuechen and Yamagishi, Junichi},
+	month = oct,
+	year = {2026},
 }
+
 ```
 
 # Dependency
@@ -181,6 +182,6 @@ The last part shows the ground-truth (REF) and model output (HYP).
 See [LICENSE](./LICENSE)
 
 # Acknowledgement
-This work is partially supported by JST, PRESTO Grant (JPMJPR23P9), and K Program Grant (JPMJKP24C2), Japan. It is partially done on TSUBAME4.0, Institute of Science Tokyo.
+This work is partially supported by JST, PRESTO Grant (JPMJPR23P9), Japan. It is partially done on TSUBAME4.0, Institute of Science Tokyo. Hoan My Tran was supported by an NII MOU internship program. 
 
 Contact: wangxin nii ac jp
