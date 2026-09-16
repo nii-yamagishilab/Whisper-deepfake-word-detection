@@ -1,0 +1,552 @@
+{
+  "segments": [
+    {
+      "start": 0.031,
+      "end": 13.77,
+      "text": "Nahm der Oehi den Peter ein !!!!!! wenig auf die Seite, damit dieser verstehen k\u00f6nne, was er ihm zu !!!!!! sagen hatte, denn die Geisten meckerten immer, eine st\u00e4rker als !!!!!! die andere, vor lauter Freude und Freundschaftsbezeugungen, sobald sie das !!!!!! Heide in ihrer Mitte hatten.",
+      "words": [
+        {
+          "word": "Nahm",
+          "start": 0.031,
+          "end": 0.552,
+          "score": 0.544
+        },
+        {
+          "word": "der",
+          "start": 0.573,
+          "end": 0.693,
+          "score": 0.715
+        },
+        {
+          "word": "Oehi",
+          "start": 0.853,
+          "end": 0.974,
+          "score": 0.28
+        },
+        {
+          "word": "den",
+          "start": 0.994,
+          "end": 1.154,
+          "score": 0.848
+        },
+        {
+          "word": "Peter",
+          "start": 1.194,
+          "end": 1.495,
+          "score": 0.972
+        },
+        {
+          "word": "ein",
+          "start": 1.555,
+          "end": 1.636,
+          "score": 0.316
+        },
+        {
+          "word": "wenig",
+          "start": 1.656,
+          "end": 1.936,
+          "score": 0.808
+        },
+        {
+          "word": "auf",
+          "start": 1.977,
+          "end": 2.057,
+          "score": 0.291
+        },
+        {
+          "word": "die",
+          "start": 2.097,
+          "end": 2.197,
+          "score": 0.287
+        },
+        {
+          "word": "Seite,",
+          "start": 2.217,
+          "end": 2.598,
+          "score": 0.931
+        },
+        {
+          "word": "damit",
+          "start": 2.999,
+          "end": 3.32,
+          "score": 0.657
+        },
+        {
+          "word": "dieser",
+          "start": 3.34,
+          "end": 3.541,
+          "score": 0.562
+        },
+        {
+          "word": "verstehen",
+          "start": 3.621,
+          "end": 4.042,
+          "score": 0.611
+        },
+        {
+          "word": "k\u00f6nne,",
+          "start": 4.083,
+          "end": 4.363,
+          "score": 0.678
+        },
+        {
+          "word": "was",
+          "start": 4.383,
+          "end": 4.584,
+          "score": 0.819
+        },
+        {
+          "word": "er",
+          "start": 4.604,
+          "end": 4.664,
+          "score": 0.611
+        },
+        {
+          "word": "ihm",
+          "start": 4.724,
+          "end": 4.805,
+          "score": 0.1
+        },
+        {
+          "word": "zu",
+          "start": 4.825,
+          "end": 4.925,
+          "score": 0.647
+        },
+        {
+          "word": "sagen",
+          "start": 4.965,
+          "end": 5.306,
+          "score": 0.83
+        },
+        {
+          "word": "hatte,",
+          "start": 5.326,
+          "end": 5.627,
+          "score": 0.843
+        },
+        {
+          "word": "denn",
+          "start": 6.148,
+          "end": 6.269,
+          "score": 0.643
+        },
+        {
+          "word": "die",
+          "start": 6.309,
+          "end": 6.409,
+          "score": 0.321
+        },
+        {
+          "word": "Geisten",
+          "start": 6.429,
+          "end": 6.75,
+          "score": 0.693
+        },
+        {
+          "word": "meckerten",
+          "start": 6.77,
+          "end": 7.171,
+          "score": 0.509
+        },
+        {
+          "word": "immer,",
+          "start": 7.231,
+          "end": 7.472,
+          "score": 0.864
+        },
+        {
+          "word": "eine",
+          "start": 7.853,
+          "end": 8.134,
+          "score": 0.731
+        },
+        {
+          "word": "st\u00e4rker",
+          "start": 8.154,
+          "end": 8.475,
+          "score": 0.6
+        },
+        {
+          "word": "als",
+          "start": 8.535,
+          "end": 8.716,
+          "score": 0.678
+        },
+        {
+          "word": "die",
+          "start": 8.736,
+          "end": 8.796,
+          "score": 0.343
+        },
+        {
+          "word": "andere,",
+          "start": 8.856,
+          "end": 9.337,
+          "score": 0.831
+        },
+        {
+          "word": "vor",
+          "start": 9.358,
+          "end": 9.478,
+          "score": 0.902
+        },
+        {
+          "word": "lauter",
+          "start": 9.538,
+          "end": 9.879,
+          "score": 0.644
+        },
+        {
+          "word": "Freude",
+          "start": 9.939,
+          "end": 10.26,
+          "score": 0.683
+        },
+        {
+          "word": "und",
+          "start": 10.3,
+          "end": 10.38,
+          "score": 0.779
+        },
+        {
+          "word": "Freundschaftsbezeugungen,",
+          "start": 10.421,
+          "end": 11.925,
+          "score": 0.632
+        },
+        {
+          "word": "sobald",
+          "start": 11.945,
+          "end": 12.266,
+          "score": 0.682
+        },
+        {
+          "word": "sie",
+          "start": 12.286,
+          "end": 12.386,
+          "score": 0.499
+        },
+        {
+          "word": "das",
+          "start": 12.406,
+          "end": 12.527,
+          "score": 0.532
+        },
+        {
+          "word": "Heide",
+          "start": 12.547,
+          "end": 12.827,
+          "score": 0.745
+        },
+        {
+          "word": "in",
+          "start": 12.847,
+          "end": 12.908,
+          "score": 0.801
+        },
+        {
+          "word": "ihrer",
+          "start": 12.968,
+          "end": 13.148,
+          "score": 0.264
+        },
+        {
+          "word": "Mitte",
+          "start": 13.168,
+          "end": 13.409,
+          "score": 0.738
+        },
+        {
+          "word": "hatten.",
+          "start": 13.429,
+          "end": 13.77,
+          "score": 0.837
+        }
+      ]
+    }
+  ],
+  "word_segments": [
+    {
+      "word": "Nahm",
+      "start": 0.031,
+      "end": 0.552,
+      "score": 0.544
+    },
+    {
+      "word": "der",
+      "start": 0.573,
+      "end": 0.693,
+      "score": 0.715
+    },
+    {
+      "word": "Oehi",
+      "start": 0.853,
+      "end": 0.974,
+      "score": 0.28
+    },
+    {
+      "word": "den",
+      "start": 0.994,
+      "end": 1.154,
+      "score": 0.848
+    },
+    {
+      "word": "Peter",
+      "start": 1.194,
+      "end": 1.495,
+      "score": 0.972
+    },
+    {
+      "word": "ein",
+      "start": 1.555,
+      "end": 1.636,
+      "score": 0.316
+    },
+    {
+      "word": "wenig",
+      "start": 1.656,
+      "end": 1.936,
+      "score": 0.808
+    },
+    {
+      "word": "auf",
+      "start": 1.977,
+      "end": 2.057,
+      "score": 0.291
+    },
+    {
+      "word": "die",
+      "start": 2.097,
+      "end": 2.197,
+      "score": 0.287
+    },
+    {
+      "word": "Seite,",
+      "start": 2.217,
+      "end": 2.598,
+      "score": 0.931
+    },
+    {
+      "word": "damit",
+      "start": 2.999,
+      "end": 3.32,
+      "score": 0.657
+    },
+    {
+      "word": "dieser",
+      "start": 3.34,
+      "end": 3.541,
+      "score": 0.562
+    },
+    {
+      "word": "verstehen",
+      "start": 3.621,
+      "end": 4.042,
+      "score": 0.611
+    },
+    {
+      "word": "k\u00f6nne,",
+      "start": 4.083,
+      "end": 4.363,
+      "score": 0.678
+    },
+    {
+      "word": "was",
+      "start": 4.383,
+      "end": 4.584,
+      "score": 0.819
+    },
+    {
+      "word": "er",
+      "start": 4.604,
+      "end": 4.664,
+      "score": 0.611
+    },
+    {
+      "word": "ihm",
+      "start": 4.724,
+      "end": 4.805,
+      "score": 0.1
+    },
+    {
+      "word": "zu",
+      "start": 4.825,
+      "end": 4.925,
+      "score": 0.647
+    },
+    {
+      "word": "sagen",
+      "start": 4.965,
+      "end": 5.306,
+      "score": 0.83
+    },
+    {
+      "word": "hatte,",
+      "start": 5.326,
+      "end": 5.627,
+      "score": 0.843
+    },
+    {
+      "word": "denn",
+      "start": 6.148,
+      "end": 6.269,
+      "score": 0.643
+    },
+    {
+      "word": "die",
+      "start": 6.309,
+      "end": 6.409,
+      "score": 0.321
+    },
+    {
+      "word": "Geisten",
+      "start": 6.429,
+      "end": 6.75,
+      "score": 0.693
+    },
+    {
+      "word": "meckerten",
+      "start": 6.77,
+      "end": 7.171,
+      "score": 0.509
+    },
+    {
+      "word": "immer,",
+      "start": 7.231,
+      "end": 7.472,
+      "score": 0.864
+    },
+    {
+      "word": "eine",
+      "start": 7.853,
+      "end": 8.134,
+      "score": 0.731
+    },
+    {
+      "word": "st\u00e4rker",
+      "start": 8.154,
+      "end": 8.475,
+      "score": 0.6
+    },
+    {
+      "word": "als",
+      "start": 8.535,
+      "end": 8.716,
+      "score": 0.678
+    },
+    {
+      "word": "die",
+      "start": 8.736,
+      "end": 8.796,
+      "score": 0.343
+    },
+    {
+      "word": "andere,",
+      "start": 8.856,
+      "end": 9.337,
+      "score": 0.831
+    },
+    {
+      "word": "vor",
+      "start": 9.358,
+      "end": 9.478,
+      "score": 0.902
+    },
+    {
+      "word": "lauter",
+      "start": 9.538,
+      "end": 9.879,
+      "score": 0.644
+    },
+    {
+      "word": "Freude",
+      "start": 9.939,
+      "end": 10.26,
+      "score": 0.683
+    },
+    {
+      "word": "und",
+      "start": 10.3,
+      "end": 10.38,
+      "score": 0.779
+    },
+    {
+      "word": "Freundschaftsbezeugungen,",
+      "start": 10.421,
+      "end": 11.925,
+      "score": 0.632
+    },
+    {
+      "word": "sobald",
+      "start": 11.945,
+      "end": 12.266,
+      "score": 0.682
+    },
+    {
+      "word": "sie",
+      "start": 12.286,
+      "end": 12.386,
+      "score": 0.499
+    },
+    {
+      "word": "das",
+      "start": 12.406,
+      "end": 12.527,
+      "score": 0.532
+    },
+    {
+      "word": "Heide",
+      "start": 12.547,
+      "end": 12.827,
+      "score": 0.745
+    },
+    {
+      "word": "in",
+      "start": 12.847,
+      "end": 12.908,
+      "score": 0.801
+    },
+    {
+      "word": "ihrer",
+      "start": 12.968,
+      "end": 13.148,
+      "score": 0.264
+    },
+    {
+      "word": "Mitte",
+      "start": 13.168,
+      "end": 13.409,
+      "score": 0.738
+    },
+    {
+      "word": "hatten.",
+      "start": 13.429,
+      "end": 13.77,
+      "score": 0.837
+    }
+  ],
+  "language": "de",
+  "replacements": [
+    {
+      "word": "wenig",
+      "replacement_start": 1.656,
+      "replacement_end": 1.936
+    },
+    {
+      "word": "sagen",
+      "replacement_start": 4.965,
+      "replacement_end": 5.306
+    },
+    {
+      "word": "Heide",
+      "replacement_start": 12.547,
+      "replacement_end": 12.827
+    },
+    {
+      "word": "die",
+      "replacement_start": 8.736,
+      "replacement_end": 8.796
+    }
+  ]
+}

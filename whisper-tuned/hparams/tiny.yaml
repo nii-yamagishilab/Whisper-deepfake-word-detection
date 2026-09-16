@@ -11,7 +11,7 @@ learning_rate: 0.00001
 weight_decay: 0.01
 adam_epsilon: 1e-8
 warmup_steps: 2
-batch_size: 8
+batch_size: 4
 num_worker: 4
 num_train_epochs: 2
 gradient_accumulation_steps: 1
@@ -22,3 +22,5 @@ weight_vocoded_token: 1.0
 weight_other_token: 1.0
 trim_leading_pad: 4
 checkpoint: loss
+# folder of experiment folder
+checkpoint_folder: PLACEHOLDER

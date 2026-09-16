@@ -50,12 +50,23 @@ logger = logging.getLogger(__name__)
 checkpoint_name = 'checkpoint'
 lora_cp_name = 'lora.ckpt'
 
-def return_folder_name(cfg_name, model_name, learning_rate):
+def return_folder_name(cfg_name, cfg):
+    # no need to use model_name and learning rate to decide project folder 
+    # , model_name, learning_rate):
     #project_dir = 'project/cp_whisper_{:s}_lr_{:3.0e}'.format(model_name, learning_rate)
+
+    # by default, everything is saved to the project_dir
+    
     project_dir = 'project/cp_whisper_{:s}'.format(cfg_name)
     log_output_dir = "{:s}/logs".format(project_dir)
     check_output_dir = "{:s}/artifacts".format(project_dir)
-    cp_dir = "{:s}/checkpoint".format(check_output_dir)
+
+    if 'checkpoint_folder' in cfg.__dict__ and cfg.checkpoint_folder != 'PLACEHOLDER':
+        cp_dir = cfg.checkpoint_folder
+        logger.info(f"Set checkpoint folder to {cp_dir}, from which checkpoint is saved or loaded.")
+    else:
+        cp_dir = "{:s}/checkpoint".format(check_output_dir)
+    
     output_dir = "{:s}/outputs".format(check_output_dir)
     return project_dir, log_output_dir, cp_dir, output_dir
 
@@ -309,7 +320,7 @@ def train(cfg, cfg_name):
     
     model_name = cfg.model_name
     lang = cfg.lang
-    project_dir, log_output_dir, cp_dir, _ = return_folder_name(cfg_name, model_name, cfg.learning_rate)
+    project_dir, log_output_dir, cp_dir, _ = return_folder_name(cfg_name, cfg)
     
     train_name = "whisper_finetune_lr_{:3.0e}".format(cfg.learning_rate)
     train_id = "all_finetune_lr_{:3.0e}".format(cfg.learning_rate)
@@ -394,7 +405,7 @@ def inference(cfg, cfg_name):
     model_name = cfg.model_name
     lang = cfg.lang
 
-    project_dir, _, cp_dir, save_dir = return_folder_name(cfg_name, model_name, cfg.learning_rate)
+    project_dir, _, cp_dir, save_dir = return_folder_name(cfg_name, cfg)
     Path(save_dir).mkdir(parents=True, exist_ok=True)
     #train_name = "whisper_finetune_lr_{:3.0e}".format(cfg.learning_rate)
     #train_id = "all_finetune_lr_{:3.0e}".format(cfg.learning_rate)

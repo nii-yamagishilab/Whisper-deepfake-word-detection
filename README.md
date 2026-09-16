@@ -38,7 +38,8 @@ git clone https://huggingface.co/spaces/evaluate-metric/wer
 git clone https://huggingface.co/spaces/evaluate-metric/cer
 ```
 
-- [ ] dependency installation for LoRA. This is not used for further experiments
+
+Dependency installation for LoRA is not necessary anymore. It is not used for further experiments in the paper.
 
 # Folder structure
 
@@ -84,16 +85,19 @@ This code will use the tiny dataset (one sample, repeated 16 times) to demonstra
      * 1st column is the json file
      * 2nd column is the wav file
      * see `data/tiny/tiny.lst` for example
+   * `projdir_name`: optional name to save output (or load pre-trained)
+     * By default, it will be `project/cp_whisper_<NAME_OF_CONFIG>`
    * See the `README_YAML.md` for details on yaml
  
 2. Load model and do training
 
 3. Load checkpoint and do inference
    * output is saved to `project/cp_whisper_<NAME_OF_CONFIG>`
-   * output folder has structure
+   * it has sub-folders
      * `artifacts/checkpoint`: folder to save checkpoint
      * `artifacts/outputs`: folder to save the inference output
-   * The inference output is saved in `.pkl` format
+     * `logs`: training logs
+   * The inference output is saved in `.pkl` format in `artifacts/outputs`
 
 4. Evaluation
    * For Whisper: main.py calls evaluation.py (or other tools) to compute detection errors and WER/CER
@@ -122,9 +126,9 @@ INFO:__main__:##################################################
 INFO:__main__:TRAIN DATASET SIZE: 16
 INFO:__main__:DEV DATASET SIZE: 16
 INFO:__main__:Sample training item:
-INFO:__main__:ID: o3d3yMxfioA_part_367_vocoded_replaced_3
-INFO:__main__:Audio: ../data/tiny/o3d3yMxfioA_part_367_vocoded_replaced_3.flac
-INFO:__main__:Text:  Versucht !!!!!! mittels !!!!!! stabilen !!!!!! Vo...
+INFO:__main__:ID: hifigan_589_1692_000106
+INFO:__main__:Audio: data/tiny/hifigan_589_1692_000106.wav
+INFO:__main__:Text: Nahm der Oehi den Peter ein !!!!!! wenig auf die S...
 ...
 Epoch 1: 100%|█| 4/4 [00:13<00:00,  0.30it/s, v_num=e-05, train_loss=0.962, val_loss_step=0.902, val_ce
 `Trainer.fit` stopped: `max_epochs=2` reached.     
@@ -139,33 +143,57 @@ INFO:__main__:Training finished
 INFO:__main__:Inference output saved to project/cp_whisper_hparams_tiny.yaml/artifacts/outputs/checkpoint-epoch-0001-val_loss-0.9019-val_cer-0.1091-val_wer-1.0000.ckpt.inference.tiny.txt.pkl
 ...
 
-CER: 10.8108
-WER: 100.0000
-
-Vocoded Word Detection Results:
-a_true_bonafide: 16
-b_true_spoof: 0
-c_false_negative: 0
-d_false_positive: 48
-accuracy: 25.0
+CER: 0.0000                            
+WER: 0.0000         
+                                       
+Vocoded Word Detection Results:        
+a_true_bonafide: 624                   
+b_true_spoof: 0                        
+c_false_negative: 0                    
+d_false_positive: 64            
+accuracy: 90.69767441860465
 FPR: 100.0
 FNR: 0.0
 --------------------
-REF: Versucht!!!!!!mittels~~~!!!!!!stabilen~~~!!!!!!Vollkurven.~~~
-HYP: Versucht, mittels, stabilen, Vollkurven,
+REF: Nahm der Oehi den Peter ein!!!!!!wenig~~~auf die Seite, damit dieser verstehen könne, was er ihm zu!!!!!!sagen~~~hatte, denn die Geisten meckerten immer, eine stärker als!!!!!!die~~~andere, vor lauter Freude und Freundschaftsbezeugungen, sobald sie das!!!!!!Heide~~~in ihrer Mitte hatten.
+HYP: nahm der Oehi den Peter ein wenig auf die Seite, damit dieser verstehen könne, was er ihm zu sagen hatte,
+ denn die Geisten meckerten immer, eine stärker als die andere, vor lauter Freude und Freundschaftsbezeugungen, sobald sie das Heide in ihrer Mitte hatten.        
 --------------------
 ...
+References:  16 phrases, 560 words
+Predictions: 16 phrases, 688 words
 ```
 
-The above log shows the CER/WER and FRR/FNR on the tiny data set.
+Depending on the GPU and data I/O, it may take a few minutes to run on the tiny dataset.
 
-The last part shows the ground-truth (REF) and model output (HYP).
+The above log shows the CER/WER and FRR/FNR on the tiny data set. The last part shows the ground-truth (REF) and model output (HYP).
+
+It is not surprising that the Whisper fine-tuned on tiny dataset cannot detect no synthetic word (FRP: 100.0, which is false acceptance rate). You may try our pre-trained Whisper (see the following section).
+
+## Error at running:
+
+`torch.cuda.OutOfMemoryError: CUDA out of memory.`: Please reduce `batch_size: 8` in `hyparams/tiny.yaml`
+
+
 
 # Notes:
+
+## How to load pre-trained checkpoint
+
+* download a pretrained checkpoint (for example from [hg](https://huggingface.co/nii-yamagishilab/whisper-deepfake-word-detection))
+* run inference by adding `--checkpoint_folder <PATH_TO_CHECKPOINT_FOLDER>` to the python command (see inference commande in `script/tiny.sh`)
+    * note that `<PATH_TO_CHECKPOINT_FOLDER>` should be the path to the folder that contains checkpoint `*.ckpt`, not the path to the checkpoint itself.
+    * the code will find and load the checkpoint
+    * the inference code will say `Set checkpoint folder to ..., from which checkpoint is saved or loaded.`
+
 
 ## YAML and scripts
 
 * `*/hparams/exp*.yaml` are the configuration files actually used in the paper.
+  * `exp_voc_mls.yaml`: `FT.Voc`
+  * `exp_voctts_mls.yaml`: `FT.V+T`
+  * `full_x02_llamapartial_l.yam`: `FT.TTS`
+  * The path to the data can be found on NII internal server
 * `*/scripts/qsub.sh` are the scripts to run training and inference on multiple test sets.
 * to use pre-trained Whisper, run the inference command using `whisper-tuned/utils/main_pretrained_whisper.py`. The commandline is the same as inference using `main.py`.
 

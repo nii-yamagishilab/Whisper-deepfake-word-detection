@@ -22,3 +22,5 @@ weight_vocoded_token: 1.0
 weight_other_token: 1.0
 trim_leading_pad: 4
 checkpoint: loss
+# folder of experiment folder
+checkpoint_folder: PLACEHOLDER
